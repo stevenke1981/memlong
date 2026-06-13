@@ -39,25 +39,21 @@ Legend:
 
 ## P1 Todo
 
-- [ ] Enforce `MEMORY_MAX_RECORDS`.
-  - Spec/config evidence: `MEMORY_MAX_RECORDS` is parsed as part of runtime config.
-  - Current evidence: `MemoryConfig.max_records` is stored but not used by insertion, retrieval, decay, or archival logic.
-  - Suggested files: `crates/memory-core/src/config.rs`, `crates/memory-core/src/service.rs`, `crates/memory-core/src/storage/sqlite.rs`.
+- [x] Enforce `MEMORY_MAX_RECORDS`.
+  - Commit HEAD — `add_memory()` checks `sqlite.memory_count()` before insertion, rejects if >= config.max_records.
+  - Files: `crates/memory-core/src/storage/sqlite.rs`, `crates/memory-core/src/service.rs`, `crates/memory-core/src/config.rs`.
 
-- [ ] Populate and maintain `session_stats`.
-  - Spec evidence: schema defines per-session extracted/added/deduplicated/retrieved counters.
-  - Current evidence: migration creates `session_stats`, but there are no read/write helpers or service updates.
-  - Suggested files: `crates/memory-core/src/storage/sqlite.rs`, `crates/memory-core/src/service.rs`, `crates/memory-core/tests/lifecycle_test.rs`.
+- [x] Populate and maintain `session_stats`.
+  - Commit HEAD — `ensure_session()`, `update_session_stats()`, `end_session()` in SqliteStore. `add_memory()` tracks extracted/added/deduplicated. `search_memories()` tracks retrieved. `end_session` MCP tool.
+  - Files: `crates/memory-core/src/storage/sqlite.rs`, `crates/memory-core/src/service.rs`, `crates/memory-core/src/models/query.rs`, `crates/memory-mcp-server/src/server.rs`.
 
-- [ ] Persist actual embedding metadata in `system_config`.
-  - Spec evidence: vector dimensions and embedding model are meant to be tracked for dimension migration safety.
-  - Current evidence: migration inserts `vector_dimensions = 1536` and `embedding_model = unknown`; runtime config does not update them.
-  - Suggested files: `crates/memory-core/src/storage/sqlite.rs`, `crates/memory-core/src/service.rs`, `crates/memory-core/src/storage/migrations/1_init.sql`.
+- [x] Persist actual embedding metadata in `system_config`.
+  - Commit HEAD — `set_system_config()`/`get_system_config()` in SqliteStore. `MemoryService::new()` writes runtime `vector_dimensions` and `embedding_model`.
+  - Files: `crates/memory-core/src/storage/sqlite.rs`, `crates/memory-core/src/service.rs`.
 
-- [ ] Add USearch compaction/rebuild path during batch consolidation.
-  - Spec evidence: session-end consolidation includes index compaction for Tantivy and USearch.
-  - Current evidence: `batch_consolidate()` compacts only Tantivy.
-  - Suggested files: `crates/memory-core/src/storage/vector.rs`, `crates/memory-core/src/consolidation/engine.rs`.
+- [x] Add USearch compaction/rebuild path during batch consolidation.
+  - Commit HEAD — `VectorStore::compact()` rebuilds HNSW graph via `reset()`+re-add. Called from `batch_consolidate()` after Tantivy compaction.
+  - Files: `crates/memory-core/src/storage/vector.rs`, `crates/memory-core/src/consolidation/engine.rs`.
 
 - [ ] Add MCP protocol smoke test for OpenCode compatibility.
   - Spec evidence: completion requires MCP Server to be loadable by OpenCode and respond to tool list.

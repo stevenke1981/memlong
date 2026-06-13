@@ -124,6 +124,13 @@ impl SqliteStore {
         Ok(())
     }
 
+    pub async fn memory_count(&self) -> Result<i64> {
+        let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM memories")
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(count.0)
+    }
+
     pub async fn list_memories(
         &self,
         scope: Option<&str>,
@@ -267,6 +274,84 @@ impl SqliteStore {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    /// Ensure a session_stats row exists for the given session.
+    pub async fn ensure_session(&self, session_id: &str, project_id: Option<&str>) -> Result<()> {
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        sqlx::query(
+            "INSERT OR IGNORE INTO session_stats (session_id, project_id, started_at)
+             VALUES (?, ?, ?)",
+        )
+        .bind(session_id)
+        .bind(project_id)
+        .bind(now_ms)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Increment counter(s) for an existing session_stats row.
+    /// End a session by setting ended_at timestamp.
+    pub async fn end_session(&self, session_id: &str) -> Result<()> {
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        sqlx::query("UPDATE session_stats SET ended_at = ? WHERE session_id = ?")
+            .bind(now_ms)
+            .bind(session_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn update_session_stats(
+        &self,
+        session_id: &str,
+        extracted: i64,
+        added: i64,
+        deduplicated: i64,
+        retrieved: i64,
+        tokens: i64,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE session_stats SET
+             memories_extracted = memories_extracted + ?,
+             memories_added = memories_added + ?,
+             memories_deduplicated = memories_deduplicated + ?,
+             memories_retrieved = memories_retrieved + ?,
+             total_tokens_used = total_tokens_used + ?
+             WHERE session_id = ?",
+        )
+        .bind(extracted)
+        .bind(added)
+        .bind(deduplicated)
+        .bind(retrieved)
+        .bind(tokens)
+        .bind(session_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Upsert a key-value pair in system_config.
+    pub async fn set_system_config(&self, key: &str, value: &str) -> Result<()> {
+        sqlx::query(
+            "INSERT OR REPLACE INTO system_config (key, value) VALUES (?, ?)",
+        )
+        .bind(key)
+        .bind(value)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Get a value from system_config by key.
+    pub async fn get_system_config(&self, key: &str) -> Result<Option<String>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT value FROM system_config WHERE key = ?")
+                .bind(key)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|r| r.0))
     }
 
     pub async fn get_memories_for_decay(

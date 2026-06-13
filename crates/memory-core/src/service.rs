@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 #[allow(dead_code)]
 pub struct MemoryService {
+    config: MemoryConfig,
     sqlite: Arc<SqliteStore>,
     vector_store: Arc<VectorStore>,
     text_index: Arc<TextIndex>,
@@ -78,7 +79,16 @@ impl MemoryService {
             config.decay_mu,
         ));
 
+        // Persist actual embedding metadata into system_config
+        let _ = sqlite
+            .set_system_config("vector_dimensions", &config.embedding_dim.to_string())
+            .await;
+        let _ = sqlite
+            .set_system_config("embedding_model", &config.embedding_model)
+            .await;
+
         Ok(Self {
+            config: config.clone(),
             sqlite,
             vector_store,
             text_index,
@@ -116,6 +126,23 @@ impl MemoryService {
             Err(e) => return Err(e),
         };
 
+        // 2. Enforce max_records limit
+        let current_count = self.sqlite.memory_count().await?;
+        if current_count >= self.config.max_records as i64 {
+            tracing::warn!(
+                "Memory store at capacity ({} >= {}), rejecting new memory",
+                current_count,
+                self.config.max_records
+            );
+            return Ok(Vec::new());
+        }
+
+        // 3. Ensure session_stats row exists
+        let _ = self.sqlite.ensure_session(&session_id, project_id.as_deref()).await;
+
+        let extracted_count = extracted_chunks.len() as i64;
+        let mut added_count = 0i64;
+        let mut dedup_count = 0i64;
         let mut added = Vec::new();
         for chunk in extracted_chunks {
             // 2. Embed content (skip on failure)
@@ -141,20 +168,46 @@ impl MemoryService {
                 )
                 .await
             {
-                Ok(Some(mem)) => added.push(mem),
-                Ok(None) => {} // deduplicated
+                Ok(Some(mem)) => {
+                    added.push(mem);
+                    added_count += 1;
+                }
+                Ok(None) => {
+                    dedup_count += 1;
+                }
                 Err(e) => {
                     tracing::warn!("Memory consolidation degraded (skipping chunk): {e}");
                 }
             }
         }
 
+        // Update session stats
+        let _ = self
+            .sqlite
+            .update_session_stats(
+                &session_id,
+                extracted_count,
+                added_count,
+                dedup_count,
+                0,
+                0,
+            )
+            .await;
+
         Ok(added)
     }
 
     /// Search memories using Hybrid retrieval
     pub async fn search_memories(&self, query: &SearchQuery) -> Result<Vec<SearchResult>> {
-        self.retrieval.search(query).await
+        let results = self.retrieval.search(query).await?;
+        // Track retrieval in session_stats if session_id is set
+        if let Some(session_id) = query.session_id.as_deref() {
+            let _ = self
+                .sqlite
+                .update_session_stats(session_id, 0, 0, 0, results.len() as i64, 0)
+                .await;
+        }
+        Ok(results)
     }
 
     /// Retrieve memories with filters
@@ -203,6 +256,11 @@ impl MemoryService {
     /// Expose the consolidation engine for background scheduling
     pub fn consolidation_engine(&self) -> Arc<ConsolidationEngine> {
         self.consolidation.clone()
+    }
+
+    /// End a session by ID (sets ended_at timestamp)
+    pub async fn end_session(&self, session_id: &str) -> Result<()> {
+        self.sqlite.end_session(session_id).await
     }
 
     /// Get stats

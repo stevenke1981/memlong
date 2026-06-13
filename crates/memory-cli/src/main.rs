@@ -124,6 +124,7 @@ async fn main() -> anyhow::Result<()> {
                 created_after: None,
                 min_importance: None,
                 include_decayed: false,
+                session_id: None,
                 weights: None,
             };
 

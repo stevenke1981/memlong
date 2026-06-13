@@ -179,6 +179,13 @@ impl ConsolidationEngine {
             .get_memories_for_decay(scope.as_ref().map(MemoryScope::as_str), project_id)
             .await?;
 
+        // Collect valid vector IDs before moving memories into the loop
+        let vector_ids: Vec<u64> = memories
+            .iter()
+            .map(|m| m.vector_id as u64)
+            .filter(|&id| id > 0)
+            .collect();
+
         for mut mem in memories {
             // Check if already archived
             let mut meta: serde_json::Map<String, serde_json::Value> =
@@ -241,6 +248,11 @@ impl ConsolidationEngine {
         // Compact Tantivy index after decay updates
         if let Err(e) = self.text_index.compact() {
             tracing::warn!("Failed to compact text index: {e}");
+        }
+
+        // Compact USearch index with only valid entries
+        if let Err(e) = self.vector_store.compact(&vector_ids) {
+            tracing::warn!("Failed to compact vector index: {e}");
         }
 
         Ok(())

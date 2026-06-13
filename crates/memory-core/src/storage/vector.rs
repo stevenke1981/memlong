@@ -102,6 +102,56 @@ impl VectorStore {
         self.index.size()
     }
 
+    /// Compact the index by rebuilding from scratch with only the given valid keys.
+    /// This eliminates stale HNSW graph edges from removed/replaced entries.
+    pub fn compact(&self, valid_keys: &[u64]) -> Result<()> {
+        if valid_keys.is_empty() {
+            return Ok(());
+        }
+
+        let dim = self.dimensions;
+        let mut buffer = vec![0.0f32; dim];
+
+        // Collect valid (key, vector) pairs from the current index
+        let mut pairs: Vec<(u64, Vec<f32>)> = Vec::with_capacity(valid_keys.len());
+        for &key in valid_keys {
+            if !self.index.contains(key) {
+                continue;
+            }
+            buffer.fill(0.0);
+            match self.index.get::<f32>(key, &mut buffer) {
+                Ok(_) => {
+                    pairs.push((key, buffer.clone()));
+                }
+                Err(e) => {
+                    tracing::warn!("VectorStore compact: failed to get key {key}: {e}");
+                }
+            }
+        }
+
+        if pairs.is_empty() {
+            return Ok(());
+        }
+
+        // Reset the index and re-add valid entries
+        map_usearch(self.index.reset())?;
+        map_usearch(self.index.reserve(pairs.len().next_power_of_two()))?;
+
+        for (key, vector) in &pairs {
+            map_usearch(self.index.add(*key, vector))?;
+        }
+
+        self.persist()?;
+
+        tracing::info!(
+            "VectorStore compact: reduced from {} keys to {} entries",
+            valid_keys.len(),
+            self.index.size()
+        );
+
+        Ok(())
+    }
+
     fn validate_vector(&self, vector: &[f32]) -> Result<()> {
         if vector.len() != self.dimensions {
             return Err(MemoryError::VectorIndex(format!(

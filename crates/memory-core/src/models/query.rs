@@ -31,6 +31,9 @@ pub struct SearchQuery {
     #[serde(default)]
     pub include_decayed: bool,
 
+    /// Session ID (for session_stats tracking)
+    pub session_id: Option<String>,
+
     /// Hybrid 評分權重 (None = 使用配置預設)
     pub weights: Option<HybridWeights>,
 }
@@ -94,6 +97,7 @@ impl Default for SearchQuery {
             created_after: None,
             min_importance: None,
             include_decayed: false,
+            session_id: None,
             weights: None,
         }
     }

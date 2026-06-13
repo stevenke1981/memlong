@@ -37,6 +37,12 @@ pub struct AddMemoryInput {
 }
 
 #[derive(Deserialize, JsonSchema)]
+pub struct EndSessionInput {
+    #[schemars(description = "Session ID to end")]
+    pub session_id: String,
+}
+
+#[derive(Deserialize, JsonSchema)]
 pub struct SearchWeightsInput {
     pub semantic: Option<f64>,
     pub bm25: Option<f64>,
@@ -53,6 +59,8 @@ pub struct SearchMemoriesInput {
     pub scope: Option<String>,
     #[schemars(description = "Filter by project ID")]
     pub project_id: Option<String>,
+    #[schemars(description = "Session ID (for session_stats tracking)")]
+    pub session_id: Option<String>,
     #[schemars(description = "Filter by categories")]
     pub categories: Option<Vec<String>>,
     #[schemars(description = "Minimum importance score threshold")]
@@ -203,6 +211,7 @@ impl MemoryMcpServer {
             top_k: input.top_k.unwrap_or(10),
             scope,
             project_id: input.project_id,
+            session_id: input.session_id,
             categories,
             created_after: None,
             min_importance: input.min_importance,
@@ -324,6 +333,29 @@ impl MemoryMcpServer {
             })?;
 
         let text = serde_json::to_string_pretty(&stats).map_err(|e| {
+            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
+        })?;
+
+        Ok(CallToolResult::success(vec![Content::text(text)]))
+    }
+
+    #[tool(
+        name = "end_session",
+        description = "End a memory session, setting the ended_at timestamp. Call when a user conversation finishes or a session naturally ends."
+    )]
+    async fn end_session(
+        &self,
+        #[tool(aggr)] input: EndSessionInput,
+    ) -> Result<CallToolResult, McpError> {
+        self.service
+            .end_session(&input.session_id)
+            .await
+            .map_err(|e| {
+                McpError::internal_error(format!("Failed to end session: {}", e), None)
+            })?;
+
+        let result = serde_json::json!({ "status": "success" });
+        let text = serde_json::to_string_pretty(&result).map_err(|e| {
             McpError::internal_error(format!("Failed to serialize result: {}", e), None)
         })?;
 
