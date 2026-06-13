@@ -7,16 +7,16 @@
   - `[x]` Define Models (`Memory`, `MemoryCategory`, `MemoryScope`, `SearchQuery`, `SearchResult`)
   - `[x]` Set up SQLite migrations (WAL mode, schemas, indices, configs)
   - `[x]` Implement SQLite database store module (`SqliteStore`)
-  - `[x]` Implement HNSW vector store module (`VectorStore` using pure Rust flat-scan fallback)
+  - `[x]` Implement HNSW vector store module (`VectorStore` backed by USearch)
   - `[x]` Implement full-text search index module (`TextIndex` using `tantivy`)
-  - `[x]` Implement OpenAI-compatible HTTP `LlmClient` (Embeddings & Completions)
+  - `[x]` Implement OpenAI-compatible HTTP `LlmClient` (Embeddings & Completions, with mock mode)
   - `[x]` Implement LLM Extraction Engine (`ExtractionEngine` with single-pass prompt)
   - `[x]` Implement ADD-only Consolidation Engine (Similarity checking, entity logic, Ebbinghaus decay)
   - `[x]` Implement Hybrid Retrieval Engine (Semantic + BM25 + Recency score fusion and filters)
   - `[x]` Implement high-level orchestrator `MemoryService`
 - `[x]` Implement `memory-mcp-server` Binary Crate
-  - `[x]` Implement MCP Stdio transport using custom JSON-RPC stdio loop
-  - `[x]` Define and implement all 6 MCP Tools (`add_memory`, `search_memories`, `get_memories`, etc.)
+  - `[x]` Implement MCP Stdio transport using `rmcp` library
+  - `[x]` Define and implement 7 MCP Tools (`add_memory`, `search_memories`, `get_memories`, `delete_memory`, `consolidate_memories`, `get_memory_stats`, `end_session`)
 - `[x]` Implement `memory-cli` Debug Binary Crate
   - `[x]` Implement subcommands: `add`, `search`, `list`, `stats`, `consolidate`
 - `[x]` Implement TypeScript Shim Plugin
@@ -27,5 +27,7 @@
 - `[x]` Testing & Verification
   - `[x]` Add unit tests / E2E test verifying storage, retrieval, and consolidation
   - `[x]` Add lifecycle E2E integration test with mock LLM client
+  - `[x]` Add MCP protocol smoke test (binary spawn + MCP handshake)
+  - `[x]` Add Criterion benchmarks for add_memory and search_memories
   - `[x]` Run cargo clippy / check verification
   - `[x]` Verify production build compiles and works under release mode

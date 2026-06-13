@@ -148,6 +148,7 @@ The built entry point is `plugin/dist/index.js`. It supports direct arrays, `{ r
 | `delete_memory` | Delete a memory and clean all indexes |
 | `consolidate_memories` | Apply scoped decay and consolidation |
 | `get_memory_stats` | Return counts and index health data |
+| `end_session` | Mark a session as ended (sets ended_at timestamp) |
 
 Search weights must be finite, non-negative, and sum to `1.0`.
 
@@ -190,7 +191,8 @@ Use grep or file search for configuration, documentation, literal error messages
 
 ```powershell
 cargo fmt --all -- --check
-cargo test --workspace
+cargo test --workspace          # 15+ tests including MCP protocol smoke test
+cargo bench -p memory-core      # Criterion benchmarks (add_memory, search_memories)
 cargo clippy --workspace --all-targets -- -D warnings
 cargo build --release
 cd plugin

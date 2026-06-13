@@ -1,4 +1,15 @@
 // TypeScript Thin Shim — Delegate all memory orchestration to the Rust MCP Server
+// Lifecycle-only. Response normalisation lives in ./response.ts.
+
+import { parseMemoriesResponse, formatMemoriesForInjection } from "./response";
+
+export interface Memory {
+  id: string;
+  content: string;
+  category: string;
+  importance_score: number;
+  score_final?: number;
+}
 
 interface ChatContext {
   projectPath?: string;
@@ -20,14 +31,6 @@ interface SessionContext {
   projectId?: string;
   sessionId: string;
   mcp: McpClient;
-}
-
-export interface Memory {
-  id: string;
-  content: string;
-  category: string;
-  importance_score: number;
-  score_final?: number;
 }
 
 interface McpClient {
@@ -71,7 +74,6 @@ export default {
      * Turn Complete: extract and save new memories asynchronously
      */
     onMessageComplete: async (ctx: MessageContext): Promise<void> => {
-      // Non-blocking: background run
       queueMicrotask(async () => {
         try {
           const conversationTurn = [
@@ -106,65 +108,3 @@ export default {
     },
   },
 };
-
-/**
- * Formats memory context block for insertion into System Prompt
- */
-export function parseMemoriesResponse(value: unknown): Memory[] {
-  if (Array.isArray(value)) return normalizeMemories(value);
-  if (!isRecord(value)) return [];
-
-  if (Array.isArray(value.results)) return normalizeMemories(value.results);
-  if (Array.isArray(value.content)) {
-    for (const item of value.content) {
-      if (!isRecord(item) || item.type !== "text" || typeof item.text !== "string") continue;
-      try {
-        const parsed = JSON.parse(item.text) as unknown;
-        const memories = parseMemoriesResponse(parsed);
-        if (memories.length > 0) return memories;
-      } catch {
-        // Ignore non-JSON MCP content blocks.
-      }
-    }
-  }
-  return [];
-}
-
-export function formatMemoriesForInjection(memories: unknown[]): string {
-  const normalized = normalizeMemories(memories);
-  const lines = normalized.map((memory, i) =>
-    `${i + 1}. [${memory.category}] ${memory.content}`
-  );
-  return [
-    "## Relevant Memory Context",
-    "(From past sessions — use as background context)",
-    ...lines,
-    "",
-  ].join("\n");
-}
-
-function normalizeMemories(values: unknown[]): Memory[] {
-  const memories: Memory[] = [];
-  for (const value of values) {
-    const candidate = isRecord(value) && isRecord(value.memory) ? value.memory : value;
-    if (!isRecord(candidate)) continue;
-    if (typeof candidate.id !== "string") continue;
-    if (typeof candidate.content !== "string" || typeof candidate.category !== "string") continue;
-    const memory: Memory = {
-      id: candidate.id,
-      content: candidate.content,
-      category: candidate.category,
-      importance_score:
-        typeof candidate.importance_score === "number" ? candidate.importance_score : 0,
-    };
-    if (typeof candidate.score_final === "number") {
-      memory.score_final = candidate.score_final;
-    }
-    memories.push(memory);
-  }
-  return memories;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}

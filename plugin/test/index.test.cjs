@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseMemoriesResponse, formatMemoriesForInjection } = require("../dist/index.js");
+const { parseMemoriesResponse, formatMemoriesForInjection } = require("../dist/response.js");
 
 const memory = {
   id: "1",

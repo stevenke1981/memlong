@@ -5,6 +5,15 @@
 > **架構：** MCP Server (Rust binary) + OpenCode Plugin (TS lifecycle hooks)  
 > **演算法對齊：** Mem0 — Single-Pass Extraction + ADD-only Consolidation + Hybrid Retrieval
 
+> **⚠️ 實作偏差記錄 (Current Deviations)**
+> - OpenCode 設定檔路徑: `~/.config/opencode/config.json` → `~/.config/opencode/opencode.jsonc`
+> - MCP entry key: `env` → `environment`
+> - MCP 傳輸: 自訂 JSON-RPC stdio loop → `rmcp` crate
+> - 向量索引: pure Rust flat-scan fallback → USearch HNSW
+> - Plugin shim 行數目標: ≤100 → ~170 行（含 response 正規化輔助）
+> - MCP 工具數量: 6 → 7（新增 `end_session`）
+> - 這些偏差已反映在 `docs/spec-gap-todo.md` 和 `docs/AGENTS.md` 中。
+
 ---
 
 ## 目錄
@@ -1310,9 +1319,9 @@ function formatMemoriesForInjection(memories: Memory[]): string {
 
 ### 9. OpenCode 配置規格
 
-#### 9.1 ~/.config/opencode/config.json
+#### 9.1 ~/.config/opencode/opencode.jsonc
 
-```json
+```jsonc
 {
   "mcp": {
     "opencode-memory": {
@@ -1320,7 +1329,7 @@ function formatMemoriesForInjection(memories: Memory[]): string {
       "command": [
         "${HOME}/.cargo/bin/memory-mcp-server"
       ],
-      "env": {
+      "environment": {
         "MEMORY_DB_PATH": "${PROJECT_ROOT}/.opencode/memory.db",
         "MEMORY_VECTOR_PATH": "${PROJECT_ROOT}/.opencode/vectors.usearch",
         "MEMORY_TANTIVY_PATH": "${PROJECT_ROOT}/.opencode/tantivy",
