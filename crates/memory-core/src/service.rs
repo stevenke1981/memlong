@@ -20,6 +20,17 @@ pub struct MemoryService {
 
 impl MemoryService {
     pub async fn new(config: MemoryConfig) -> Result<Self> {
+        // Ensure parent directories exist for database and indexes
+        if let Some(parent) = std::path::Path::new(&config.db_path).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Some(parent) = std::path::Path::new(&config.vector_path).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Some(parent) = std::path::Path::new(&config.tantivy_path).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
         let sqlite = Arc::new(SqliteStore::new(&config.db_path).await?);
 
         let vector_store = Arc::new(VectorStore::new(&config.vector_path, config.embedding_dim)?);
