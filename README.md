@@ -1,5 +1,11 @@
 # Memlong
 
+<div align="right">
+
+**English** | [繁體中文](README.zh-TW.md)
+
+</div>
+
 Memlong is a local-first long-term memory system for coding agents. It stores durable facts, preferences, decisions, code patterns, and project knowledge across sessions, then retrieves relevant memories through hybrid semantic, keyword, and temporal ranking.
 
 The core is implemented in Rust and exposed as an MCP server. A small TypeScript shim provides optional OpenCode lifecycle hooks for automatic retrieval and capture.
