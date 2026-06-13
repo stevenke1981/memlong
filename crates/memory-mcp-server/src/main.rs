@@ -1,4 +1,5 @@
 use memory_core::{config::MemoryConfig, service::MemoryService};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing_subscriber::fmt::format::FmtSpan;
 
@@ -106,25 +107,23 @@ async fn run_install() -> anyhow::Result<()> {
         .map_err(|_| anyhow::anyhow!("Could not find user profile directory"))?;
 
     // 1. Configure OpenCode
-    let opencode_dir = format!("{}/.claude/.opencode", user_profile);
-    let opencode_json_path = format!("{}/opencode.json", opencode_dir);
-    let opencode_jsonc_path = format!("{}/opencode.jsonc", opencode_dir);
-
-    let _ = std::fs::create_dir_all(&opencode_dir);
-
+    let opencode_jsonc_path = opencode_config_path(&user_profile);
     let mut configured_opencode = false;
-    for path in &[&opencode_json_path, &opencode_jsonc_path] {
-        if std::path::Path::new(path).exists() || **path == opencode_json_path {
-            if let Err(e) = update_opencode_config(path, &exe_path_str) {
-                eprintln!(
-                    "Warning: Failed to update OpenCode config at {}: {}",
-                    path, e
-                );
-            } else {
-                println!("Successfully configured OpenCode at {}", path);
-                configured_opencode = true;
-            }
-        }
+    if let Err(e) = update_opencode_config(
+        opencode_jsonc_path.to_string_lossy().as_ref(),
+        &exe_path_str,
+    ) {
+        eprintln!(
+            "Warning: Failed to update OpenCode config at {}: {}",
+            opencode_jsonc_path.display(),
+            e
+        );
+    } else {
+        println!(
+            "Successfully configured OpenCode at {}",
+            opencode_jsonc_path.display()
+        );
+        configured_opencode = true;
     }
 
     // 2. Configure Codex
@@ -156,15 +155,28 @@ async fn run_install() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn opencode_config_path(user_profile: &str) -> PathBuf {
+    Path::new(user_profile)
+        .join(".config")
+        .join("opencode")
+        .join("opencode.jsonc")
+}
+
 fn update_opencode_config(path: &str, exe_path: &str) -> anyhow::Result<()> {
-    let content = if std::path::Path::new(path).exists() {
+    let path = Path::new(path);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let content = if path.exists() {
         std::fs::read_to_string(path)?
     } else {
         "{}".to_string()
     };
 
-    let mut config: serde_json::Value =
-        serde_json::from_str(&content).unwrap_or(serde_json::json!({}));
+    let mut config: serde_json::Value = serde_json::from_str(&content)
+        .or_else(|_| serde_json::from_str(&strip_jsonc_comments(&content)))
+        .unwrap_or(serde_json::json!({}));
     if !config.is_object() {
         config = serde_json::json!({});
     }
@@ -192,6 +204,64 @@ fn update_opencode_config(path: &str, exe_path: &str) -> anyhow::Result<()> {
     let new_content = serde_json::to_string_pretty(&config)?;
     std::fs::write(path, new_content)?;
     Ok(())
+}
+
+fn strip_jsonc_comments(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    let mut in_string = false;
+    let mut escaped = false;
+
+    while let Some(ch) = chars.next() {
+        if in_string {
+            output.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = true;
+            output.push(ch);
+            continue;
+        }
+
+        if ch == '/' {
+            match chars.peek().copied() {
+                Some('/') => {
+                    chars.next();
+                    for next in chars.by_ref() {
+                        if next == '\n' {
+                            output.push('\n');
+                            break;
+                        }
+                    }
+                    continue;
+                }
+                Some('*') => {
+                    chars.next();
+                    let mut previous = '\0';
+                    for next in chars.by_ref() {
+                        if previous == '*' && next == '/' {
+                            break;
+                        }
+                        previous = next;
+                    }
+                    continue;
+                }
+                _ => {}
+            }
+        }
+
+        output.push(ch);
+    }
+
+    output
 }
 
 fn update_codex_config(path: &str, exe_path: &str) -> anyhow::Result<()> {
@@ -254,4 +324,91 @@ fn update_codex_config(path: &str, exe_path: &str) -> anyhow::Result<()> {
     let new_content = lines.join("\n");
     std::fs::write(path, new_content)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn opencode_config_path_uses_current_config_directory() {
+        let path = opencode_config_path("C:\\Users\\eda");
+        assert_eq!(
+            path,
+            std::path::PathBuf::from("C:\\Users\\eda\\.config\\opencode\\opencode.jsonc")
+        );
+    }
+
+    #[test]
+    fn update_opencode_config_preserves_existing_mcp_entries() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("opencode-memory-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let config_path = temp_dir.join("opencode.jsonc");
+        std::fs::write(
+            &config_path,
+            r#"{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "existing": {
+      "type": "local",
+      "command": ["existing.exe"],
+      "enabled": true
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        update_opencode_config(config_path.to_str().unwrap(), "C:\\tools\\memory.exe").unwrap();
+        let updated: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+
+        assert_eq!(
+            updated["mcp"]["existing"]["command"][0],
+            serde_json::json!("existing.exe")
+        );
+        assert_eq!(
+            updated["mcp"]["opencode-memory"]["command"][0],
+            serde_json::json!("C:\\tools\\memory.exe")
+        );
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn update_opencode_config_accepts_jsonc_comments() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("opencode-memory-jsonc-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let config_path = temp_dir.join("opencode.jsonc");
+        std::fs::write(
+            &config_path,
+            r#"{
+  // OpenCode allows JSONC here.
+  "plugin": [
+    "~/.config/opencode/plugins/example.ts"
+  ],
+  "mcp": {}
+}"#,
+        )
+        .unwrap();
+
+        update_opencode_config(config_path.to_str().unwrap(), "memory.exe").unwrap();
+        let updated: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
+
+        assert_eq!(
+            updated["plugin"][0],
+            serde_json::json!("~/.config/opencode/plugins/example.ts")
+        );
+        assert_eq!(
+            updated["mcp"]["opencode-memory"]["command"][0],
+            serde_json::json!("memory.exe")
+        );
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
 }
