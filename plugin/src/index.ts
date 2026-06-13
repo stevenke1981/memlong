@@ -22,7 +22,7 @@ interface SessionContext {
   mcp: McpClient;
 }
 
-interface Memory {
+export interface Memory {
   id: string;
   content: string;
   category: string;
@@ -56,9 +56,9 @@ export default {
           scope: ctx.projectId ? "Project" : "Global",
           project_id: ctx.projectId,
           min_importance: 0.3,
-        }) as Memory[];
+        });
 
-        const memories = result ?? [];
+        const memories = parseMemoriesResponse(result);
         if (memories.length === 0) return;
 
         ctx.injectSystemPrompt(formatMemoriesForInjection(memories));
@@ -110,17 +110,61 @@ export default {
 /**
  * Formats memory context block for insertion into System Prompt
  */
-function formatMemoriesForInjection(memories: Memory[]): string {
-  const lines = memories.map((m, i) => {
-    // If wrapped in SearchResult, the memory is nested
-    const category = m.category || (m as any).memory?.category;
-    const content = m.content || (m as any).memory?.content;
-    return `${i + 1}. [${category}] ${content}`;
-  });
+export function parseMemoriesResponse(value: unknown): Memory[] {
+  if (Array.isArray(value)) return normalizeMemories(value);
+  if (!isRecord(value)) return [];
+
+  if (Array.isArray(value.results)) return normalizeMemories(value.results);
+  if (Array.isArray(value.content)) {
+    for (const item of value.content) {
+      if (!isRecord(item) || item.type !== "text" || typeof item.text !== "string") continue;
+      try {
+        const parsed = JSON.parse(item.text) as unknown;
+        const memories = parseMemoriesResponse(parsed);
+        if (memories.length > 0) return memories;
+      } catch {
+        // Ignore non-JSON MCP content blocks.
+      }
+    }
+  }
+  return [];
+}
+
+export function formatMemoriesForInjection(memories: unknown[]): string {
+  const normalized = normalizeMemories(memories);
+  const lines = normalized.map((memory, i) =>
+    `${i + 1}. [${memory.category}] ${memory.content}`
+  );
   return [
     "## Relevant Memory Context",
     "(From past sessions — use as background context)",
     ...lines,
     "",
   ].join("\n");
+}
+
+function normalizeMemories(values: unknown[]): Memory[] {
+  const memories: Memory[] = [];
+  for (const value of values) {
+    const candidate = isRecord(value) && isRecord(value.memory) ? value.memory : value;
+    if (!isRecord(candidate)) continue;
+    if (typeof candidate.id !== "string") continue;
+    if (typeof candidate.content !== "string" || typeof candidate.category !== "string") continue;
+    const memory: Memory = {
+      id: candidate.id,
+      content: candidate.content,
+      category: candidate.category,
+      importance_score:
+        typeof candidate.importance_score === "number" ? candidate.importance_score : 0,
+    };
+    if (typeof candidate.score_final === "number") {
+      memory.score_final = candidate.score_final;
+    }
+    memories.push(memory);
+  }
+  return memories;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }

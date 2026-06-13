@@ -5,23 +5,15 @@ use memory_core::{
 };
 use tempfile::tempdir;
 
-#[tokio::test]
-async fn test_full_memory_lifecycle() {
-    // 1. Create temporary directory for databases & indexes
-    let tmp = tempdir().unwrap();
-    let db_path = tmp.path().join("memory.db").to_string_lossy().into_owned();
-    let vector_path = tmp
-        .path()
-        .join("vectors.usearch")
-        .to_string_lossy()
-        .into_owned();
-    let tantivy_path = tmp.path().join("tantivy").to_string_lossy().into_owned();
-
-    // Configure test environment variables to mock
-    let config = MemoryConfig {
-        db_path,
-        vector_path,
-        tantivy_path,
+fn test_config(tmp: &tempfile::TempDir) -> MemoryConfig {
+    MemoryConfig {
+        db_path: tmp.path().join("memory.db").to_string_lossy().into_owned(),
+        vector_path: tmp
+            .path()
+            .join("vectors.usearch")
+            .to_string_lossy()
+            .into_owned(),
+        tantivy_path: tmp.path().join("tantivy").to_string_lossy().into_owned(),
         llm_api_base: "mock".to_string(),
         llm_api_key: "mock".to_string(),
         embedding_model: "text-embedding-3-small".to_string(),
@@ -36,7 +28,14 @@ async fn test_full_memory_lifecycle() {
         max_records: 1000,
         min_confidence: 0.60,
         min_importance: 2,
-    };
+    }
+}
+
+#[tokio::test]
+async fn test_full_memory_lifecycle() {
+    // 1. Create temporary directory for databases & indexes
+    let tmp = tempdir().unwrap();
+    let config = test_config(&tmp);
 
     let service = MemoryService::new(config).await.unwrap();
 
@@ -92,7 +91,107 @@ async fn test_full_memory_lifecycle() {
     assert!(results[0].score_final > 0.5, "Score should be significant");
 
     // 5. Verify batch consolidation (decay calculation)
-    service.consolidate_memories().await.unwrap();
+    service.consolidate_memories(None, None).await.unwrap();
 
     // Clean up temp files automatically by dropping tmp
+}
+
+#[tokio::test]
+async fn deduplicates_at_the_exact_similarity_threshold() {
+    let tmp = tempdir().unwrap();
+    let mut config = test_config(&tmp);
+    config.dedup_threshold = 1.0;
+
+    let service = MemoryService::new(config).await.unwrap();
+    let conversation = "User: I prefer using tokio::spawn for background tasks in Rust.";
+
+    let first = service
+        .add_memory(
+            conversation,
+            MemoryScope::Global,
+            None,
+            "first".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+    let second = service
+        .add_memory(
+            conversation,
+            MemoryScope::Global,
+            None,
+            "second".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(first.len(), 1);
+    assert!(
+        second.is_empty(),
+        "similarity equal to the threshold must deduplicate"
+    );
+}
+
+#[tokio::test]
+async fn keeps_identical_memories_isolated_between_projects() {
+    let tmp = tempdir().unwrap();
+    let service = MemoryService::new(test_config(&tmp)).await.unwrap();
+    let conversation = "User: I prefer using tokio::spawn for background tasks in Rust.";
+
+    let project_a = service
+        .add_memory(
+            conversation,
+            MemoryScope::Project,
+            Some("project-a".to_string()),
+            "session-a".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+    let project_b = service
+        .add_memory(
+            conversation,
+            MemoryScope::Project,
+            Some("project-b".to_string()),
+            "session-b".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(project_a.len(), 1);
+    assert_eq!(
+        project_b.len(),
+        1,
+        "project-scoped memories must not deduplicate across projects"
+    );
+}
+
+#[tokio::test]
+async fn delete_cleans_vector_and_entity_indexes() {
+    let tmp = tempdir().unwrap();
+    let service = MemoryService::new(test_config(&tmp)).await.unwrap();
+    let added = service
+        .add_memory(
+            "User: I prefer using tokio::spawn for background tasks in Rust.",
+            MemoryScope::Global,
+            None,
+            "delete-test".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
+    let id = &added[0].id;
+
+    let before = service.get_stats().await.unwrap();
+    assert_eq!(before["vector_count"], 1);
+    assert!(before["entity_count"].as_i64().unwrap() > 0);
+
+    assert!(service.delete_memory(id).await.unwrap());
+
+    let after = service.get_stats().await.unwrap();
+    assert_eq!(after["total_memories"], 0);
+    assert_eq!(after["vector_count"], 0);
+    assert_eq!(after["entity_count"], 0);
 }

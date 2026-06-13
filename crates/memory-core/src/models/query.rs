@@ -1,4 +1,5 @@
 use crate::models::memory::{Memory, MemoryCategory, MemoryScope};
+use crate::{error::Result, MemoryError};
 use serde::{Deserialize, Serialize};
 
 /// 混合檢索查詢參數
@@ -95,5 +96,35 @@ impl Default for SearchQuery {
             include_decayed: false,
             weights: None,
         }
+    }
+}
+
+impl SearchQuery {
+    pub fn validate(&self) -> Result<()> {
+        if self.top_k == 0 {
+            return Err(MemoryError::Config(
+                "Search top_k must be greater than zero".to_string(),
+            ));
+        }
+
+        if let Some(weights) = &self.weights {
+            let values = [weights.semantic, weights.bm25, weights.temporal];
+            if values
+                .iter()
+                .any(|value| !value.is_finite() || *value < 0.0)
+            {
+                return Err(MemoryError::Config(
+                    "Hybrid weights must be finite and non-negative".to_string(),
+                ));
+            }
+            let sum: f64 = values.iter().sum();
+            if (sum - 1.0).abs() > 1e-6 {
+                return Err(MemoryError::Config(format!(
+                    "Hybrid weights must sum to 1.0, got {sum}"
+                )));
+            }
+        }
+
+        Ok(())
     }
 }

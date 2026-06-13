@@ -1,5 +1,5 @@
 use crate::consolidation::decay::{calculate_retention, initial_stability, reinforce_stability};
-use crate::consolidation::dedup::entity_overlap;
+use crate::consolidation::dedup::{entity_overlap, is_exact_duplicate, is_near_duplicate};
 use crate::consolidation::entity::link_entities;
 use crate::error::Result;
 use crate::extraction::ExtractedMemory;
@@ -54,21 +54,31 @@ impl ConsolidationEngine {
         // 2. Scan candidates for duplicates
         for (vector_id, similarity) in candidates {
             let similarity_f64 = similarity as f64;
-            if similarity_f64 > self.dedup_threshold {
+            if is_exact_duplicate(similarity_f64, self.dedup_threshold) {
                 // Exact duplicate
                 // Retrieve the memory by vector_id from SQLite.
                 // Wait! Since SQLite table has an index on vector_id, we can query by vector_id.
                 // Let's find memory by vector_id in SQLite.
-                if let Some(mem) = self.get_memory_by_vector_id(vector_id).await? {
+                if let Some(mem) = self.sqlite.get_memory_by_vector_id(vector_id).await? {
+                    if !same_scope(&mem, &scope, project_id.as_deref()) {
+                        continue;
+                    }
                     // Update access stats
                     self.sqlite
                         .update_access_stats(std::slice::from_ref(&mem.id))
                         .await?;
                     return Ok(None); // Deduplicated
                 }
-            } else if similarity_f64 > self.near_dedup_threshold {
+            } else if is_near_duplicate(
+                similarity_f64,
+                self.dedup_threshold,
+                self.near_dedup_threshold,
+            ) {
                 // Near duplicate: compare entity overlap
-                if let Some(mem) = self.get_memory_by_vector_id(vector_id).await? {
+                if let Some(mem) = self.sqlite.get_memory_by_vector_id(vector_id).await? {
+                    if !same_scope(&mem, &scope, project_id.as_deref()) {
+                        continue;
+                    }
                     let existing_entities: Vec<String> =
                         serde_json::from_str(&mem.entities).unwrap_or_default();
                     let overlap = entity_overlap(&ext.entities, &existing_entities);
@@ -141,9 +151,16 @@ impl ConsolidationEngine {
     }
 
     /// Batch decay consolidation executed periodically (e.g. daily, or on session end).
-    pub async fn batch_consolidate(&self) -> Result<()> {
+    pub async fn batch_consolidate(
+        &self,
+        scope: Option<MemoryScope>,
+        project_id: Option<&str>,
+    ) -> Result<()> {
         let now_ms = chrono::Utc::now().timestamp_millis();
-        let memories = self.sqlite.get_all_memories_for_decay().await?;
+        let memories = self
+            .sqlite
+            .get_memories_for_decay(scope.as_ref().map(MemoryScope::as_str), project_id)
+            .await?;
 
         for mut mem in memories {
             // Check if already archived
@@ -198,6 +215,7 @@ impl ConsolidationEngine {
                     mem.importance_score,
                     mem.retention_factor,
                     mem.updated_at,
+                    &mem.metadata,
                 )
                 .await?;
             // Note: Since this is decay parameter update only, we don't modify memory content.
@@ -205,13 +223,8 @@ impl ConsolidationEngine {
 
         Ok(())
     }
+}
 
-    async fn get_memory_by_vector_id(&self, vector_id: i64) -> Result<Option<Memory>> {
-        // Query memory by vector_id in SQLite
-        let mem = sqlx::query_as::<_, Memory>("SELECT * FROM memories WHERE vector_id = ?")
-            .bind(vector_id)
-            .fetch_optional(&self.sqlite.pool) // Access pool directly since we added it to SqliteStore or can do query
-            .await?;
-        Ok(mem)
-    }
+fn same_scope(memory: &Memory, scope: &MemoryScope, project_id: Option<&str>) -> bool {
+    memory.scope == scope.as_str() && memory.project_id.as_deref() == project_id
 }

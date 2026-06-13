@@ -72,6 +72,7 @@ impl TextIndex {
 
         writer_guard.add_document(doc)?;
         writer_guard.commit()?;
+        self.reader.reload()?;
         Ok(())
     }
 
@@ -83,6 +84,7 @@ impl TextIndex {
         let term = Term::from_field_text(self.id_field, id);
         writer_guard.delete_term(term);
         writer_guard.commit()?;
+        self.reader.reload()?;
         Ok(())
     }
 

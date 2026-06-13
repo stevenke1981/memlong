@@ -151,21 +151,35 @@ impl MemoryService {
 
     /// Delete memory by ID
     pub async fn delete_memory(&self, id: &str) -> Result<bool> {
+        let Some(memory) = self.sqlite.get_memory(id).await? else {
+            return Ok(false);
+        };
         let deleted = self.sqlite.delete_memory(id).await?;
         if deleted {
-            let _ = self.text_index.delete_document(id);
-            // Vector store deletion is handled by lazy index rebuilding/filtering.
+            self.vector_store.remove(memory.vector_id)?;
+            self.text_index.delete_document(id)?;
+            self.sqlite.unlink_memory_from_entities(id).await?;
         }
         Ok(deleted)
     }
 
     /// Consolidate memories (decay calculations)
-    pub async fn consolidate_memories(&self) -> Result<()> {
-        self.consolidation.batch_consolidate().await
+    pub async fn consolidate_memories(
+        &self,
+        scope: Option<MemoryScope>,
+        project_id: Option<&str>,
+    ) -> Result<()> {
+        self.consolidation
+            .batch_consolidate(scope, project_id)
+            .await
     }
 
     /// Get stats
     pub async fn get_stats(&self) -> Result<serde_json::Value> {
-        self.sqlite.get_stats().await
+        let mut stats = self.sqlite.get_stats().await?;
+        if let Some(object) = stats.as_object_mut() {
+            object.insert("vector_count".to_string(), self.vector_store.size().into());
+        }
+        Ok(stats)
     }
 }

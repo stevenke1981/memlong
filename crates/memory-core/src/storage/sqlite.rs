@@ -59,6 +59,14 @@ impl SqliteStore {
         Ok(memory)
     }
 
+    pub async fn get_memory_by_vector_id(&self, vector_id: i64) -> Result<Option<Memory>> {
+        let memory = sqlx::query_as::<_, Memory>("SELECT * FROM memories WHERE vector_id = ?")
+            .bind(vector_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(memory)
+    }
+
     pub async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<Memory>> {
         if ids.is_empty() {
             return Ok(Vec::new());
@@ -85,6 +93,35 @@ impl SqliteStore {
             .rows_affected();
 
         Ok(rows_affected > 0)
+    }
+
+    pub async fn unlink_memory_from_entities(&self, memory_id: &str) -> Result<()> {
+        let entities: Vec<EntityRecord> = sqlx::query_as("SELECT * FROM entities")
+            .fetch_all(&self.pool)
+            .await?;
+
+        for mut entity in entities {
+            let mut memory_ids: Vec<String> =
+                serde_json::from_str(&entity.memory_ids).unwrap_or_default();
+            let original_len = memory_ids.len();
+            memory_ids.retain(|id| id != memory_id);
+            if memory_ids.len() == original_len {
+                continue;
+            }
+
+            if memory_ids.is_empty() {
+                sqlx::query("DELETE FROM entities WHERE id = ?")
+                    .bind(entity.id)
+                    .execute(&self.pool)
+                    .await?;
+            } else {
+                entity.memory_ids = serde_json::to_string(&memory_ids)?;
+                entity.frequency = memory_ids.len() as i32;
+                entity.updated_at = chrono::Utc::now().timestamp_millis();
+                self.upsert_entity(&entity).await?;
+            }
+        }
+        Ok(())
     }
 
     pub async fn list_memories(
@@ -143,11 +180,13 @@ impl SqliteStore {
         importance_score: f64,
         retention_factor: f64,
         updated_at: i64,
+        metadata: &str,
     ) -> Result<()> {
-        sqlx::query("UPDATE memories SET importance_score = ?, retention_factor = ?, updated_at = ? WHERE id = ?")
+        sqlx::query("UPDATE memories SET importance_score = ?, retention_factor = ?, updated_at = ?, metadata = ? WHERE id = ?")
             .bind(importance_score)
             .bind(retention_factor)
             .bind(updated_at)
+            .bind(metadata)
             .bind(id)
             .execute(&self.pool)
             .await?;
@@ -177,6 +216,10 @@ impl SqliteStore {
                 .fetch_all(&self.pool)
                 .await?;
 
+        let entity_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM entities")
+            .fetch_one(&self.pool)
+            .await?;
+
         let mut cat_map = serde_json::Map::new();
         for (cat, count) in categories {
             cat_map.insert(cat, serde_json::Value::Number(count.into()));
@@ -191,6 +234,7 @@ impl SqliteStore {
         stats.insert("total_memories".to_string(), total_count.0.into());
         stats.insert("categories".to_string(), serde_json::Value::Object(cat_map));
         stats.insert("scopes".to_string(), serde_json::Value::Object(scope_map));
+        stats.insert("entity_count".to_string(), entity_count.0.into());
 
         Ok(serde_json::Value::Object(stats))
     }
@@ -225,8 +269,22 @@ impl SqliteStore {
         Ok(())
     }
 
-    pub async fn get_all_memories_for_decay(&self) -> Result<Vec<Memory>> {
-        let memories = sqlx::query_as::<_, Memory>("SELECT * FROM memories")
+    pub async fn get_memories_for_decay(
+        &self,
+        scope: Option<&str>,
+        project_id: Option<&str>,
+    ) -> Result<Vec<Memory>> {
+        let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM memories WHERE 1=1");
+        if let Some(scope) = scope {
+            query_builder.push(" AND scope = ").push_bind(scope);
+        }
+        if let Some(project_id) = project_id {
+            query_builder
+                .push(" AND project_id = ")
+                .push_bind(project_id);
+        }
+        let memories = query_builder
+            .build_query_as::<Memory>()
             .fetch_all(&self.pool)
             .await?;
         Ok(memories)

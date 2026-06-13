@@ -37,6 +37,7 @@ impl RetrievalEngine {
     }
 
     pub async fn search(&self, query: &SearchQuery) -> Result<Vec<SearchResult>> {
+        query.validate()?;
         let weights = query
             .weights
             .clone()
@@ -62,11 +63,7 @@ impl RetrievalEngine {
             let mut ids = Vec::new();
             for vid in sem_vector_ids {
                 // Look up by vector ID
-                let mem_opt =
-                    sqlx::query_as::<_, Memory>("SELECT * FROM memories WHERE vector_id = ?")
-                        .bind(vid)
-                        .fetch_optional(&self.sqlite.pool)
-                        .await?;
+                let mem_opt = self.sqlite.get_memory_by_vector_id(vid).await?;
                 if let Some(m) = mem_opt {
                     ids.push(m);
                 }

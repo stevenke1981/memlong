@@ -186,6 +186,10 @@ impl MemoryMcpServer {
             weights,
         };
 
+        query
+            .validate()
+            .map_err(|e| McpError::invalid_params(e.to_string(), None))?;
+
         let results = self.service.search_memories(&query).await.map_err(|e| {
             McpError::internal_error(format!("Failed to search memories: {}", e), None)
         })?;
@@ -256,11 +260,23 @@ impl MemoryMcpServer {
     )]
     async fn consolidate_memories(
         &self,
-        #[tool(aggr)] _input: ConsolidateMemoriesInput,
+        #[tool(aggr)] input: ConsolidateMemoriesInput,
     ) -> Result<CallToolResult, McpError> {
-        self.service.consolidate_memories().await.map_err(|e| {
-            McpError::internal_error(format!("Failed to consolidate memories: {}", e), None)
-        })?;
+        let scope = input
+            .scope
+            .as_deref()
+            .map(|scope| {
+                MemoryScope::from_str(scope).ok_or_else(|| {
+                    McpError::invalid_params(format!("Invalid scope: {scope}"), None)
+                })
+            })
+            .transpose()?;
+        self.service
+            .consolidate_memories(scope, input.project_id.as_deref())
+            .await
+            .map_err(|e| {
+                McpError::internal_error(format!("Failed to consolidate memories: {}", e), None)
+            })?;
 
         let result = serde_json::json!({ "status": "success" });
         let text = serde_json::to_string_pretty(&result).map_err(|e| {

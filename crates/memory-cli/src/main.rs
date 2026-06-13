@@ -171,7 +171,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Commands::Consolidate => {
             println!("Running batch decay consolidation...");
-            service.consolidate_memories().await?;
+            service.consolidate_memories(None, None).await?;
             println!("Consolidation complete.");
         }
     }

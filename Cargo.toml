@@ -28,7 +28,8 @@ sqlx             = { version = "0.8", features = [
 # Full-Text Search (BM25)
 tantivy          = { version = "0.22", default-features = true }
 
-
+# Vector Search (HNSW)
+usearch          = { version = "2", default-features = false }
 
 # MCP Protocol
 rmcp             = { version = "0.1", features = ["server", "transport-io", "macros"] }
