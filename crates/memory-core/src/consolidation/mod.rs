@@ -1,7 +1,7 @@
-pub mod dedup;
-pub mod entity;
 pub mod decay;
+pub mod dedup;
 pub mod engine;
+pub mod entity;
 
+pub use decay::{calculate_retention, initial_stability, reinforce_stability};
 pub use engine::ConsolidationEngine;
-pub use decay::{calculate_retention, reinforce_stability, initial_stability};

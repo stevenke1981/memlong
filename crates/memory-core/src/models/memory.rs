@@ -61,13 +61,13 @@ pub struct Memory {
 /// 記憶類別
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MemoryCategory {
-    Fact,              // 一般事實知識
-    Preference,        // 使用者偏好與習慣
-    Decision,          // 架構/技術決策及其理由
-    ProjectKnowledge,  // 專案特定知識 (結構、慣例)
-    CodePattern,       // 程式碼模式與最佳實踐
-    ErrorLesson,       // 錯誤教訓 (RSI: 不重蹈覆轍)
-    Workflow,          // 工作流程與 SOP
+    Fact,             // 一般事實知識
+    Preference,       // 使用者偏好與習慣
+    Decision,         // 架構/技術決策及其理由
+    ProjectKnowledge, // 專案特定知識 (結構、慣例)
+    CodePattern,      // 程式碼模式與最佳實踐
+    ErrorLesson,      // 錯誤教訓 (RSI: 不重蹈覆轍)
+    Workflow,         // 工作流程與 SOP
 }
 
 impl MemoryCategory {
@@ -83,6 +83,7 @@ impl MemoryCategory {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "Fact" => Some(Self::Fact),
@@ -100,10 +101,10 @@ impl MemoryCategory {
 /// 記憶作用域
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MemoryScope {
-    Global,   // 跨所有專案共用
-    Project,  // 特定專案隔離
-    Session,  // 僅當前會話 (短暫)
-    Agent,    // 特定 Agent 實例
+    Global,  // 跨所有專案共用
+    Project, // 特定專案隔離
+    Session, // 僅當前會話 (短暫)
+    Agent,   // 特定 Agent 實例
 }
 
 impl MemoryScope {
@@ -116,6 +117,7 @@ impl MemoryScope {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "Global" => Some(Self::Global),

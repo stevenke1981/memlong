@@ -1,8 +1,7 @@
+use crate::error::Result;
+use crate::models::Memory;
 use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
-use std::sync::Arc;
-use crate::error::{MemoryError, Result};
-use crate::models::Memory;
 
 #[derive(Clone)]
 pub struct SqliteStore {
@@ -19,9 +18,7 @@ impl SqliteStore {
         let pool = SqlitePool::connect_with(connection_options).await?;
 
         // Run migrations
-        sqlx::migrate!("src/storage/migrations")
-            .run(&pool)
-            .await?;
+        sqlx::migrate!("src/storage/migrations").run(&pool).await?;
 
         Ok(Self { pool })
     }
@@ -54,12 +51,10 @@ impl SqliteStore {
     }
 
     pub async fn get_memory(&self, id: &str) -> Result<Option<Memory>> {
-        let memory = sqlx::query_as::<_, Memory>(
-            "SELECT * FROM memories WHERE id = ?"
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let memory = sqlx::query_as::<_, Memory>("SELECT * FROM memories WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(memory)
     }
@@ -124,13 +119,13 @@ impl SqliteStore {
         }
 
         let now_ms = chrono::Utc::now().timestamp_millis();
-        
+
         let mut query_builder = sqlx::QueryBuilder::new("UPDATE memories SET ");
         query_builder.push("access_count = access_count + 1, ");
         query_builder.push("last_accessed_at = ");
         query_builder.push_bind(now_ms);
         query_builder.push(" WHERE id IN (");
-        
+
         let mut separated = query_builder.separated(", ");
         for id in ids {
             separated.push_bind(id);
@@ -142,7 +137,13 @@ impl SqliteStore {
         Ok(())
     }
 
-    pub async fn update_decay_parameters(&self, id: &str, importance_score: f64, retention_factor: f64, updated_at: i64) -> Result<()> {
+    pub async fn update_decay_parameters(
+        &self,
+        id: &str,
+        importance_score: f64,
+        retention_factor: f64,
+        updated_at: i64,
+    ) -> Result<()> {
         sqlx::query("UPDATE memories SET importance_score = ?, retention_factor = ?, updated_at = ? WHERE id = ?")
             .bind(importance_score)
             .bind(retention_factor)
@@ -154,9 +155,10 @@ impl SqliteStore {
     }
 
     pub async fn get_max_vector_id(&self) -> Result<i64> {
-        let res: Option<(i64,)> = sqlx::query_as("SELECT COALESCE(MAX(vector_id), 0) FROM memories")
-            .fetch_optional(&self.pool)
-            .await?;
+        let res: Option<(i64,)> =
+            sqlx::query_as("SELECT COALESCE(MAX(vector_id), 0) FROM memories")
+                .fetch_optional(&self.pool)
+                .await?;
         Ok(res.map(|r| r.0).unwrap_or(0))
     }
 
@@ -165,17 +167,15 @@ impl SqliteStore {
             .fetch_one(&self.pool)
             .await?;
 
-        let categories: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT category, COUNT(*) FROM memories GROUP BY category"
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let categories: Vec<(String, i64)> =
+            sqlx::query_as("SELECT category, COUNT(*) FROM memories GROUP BY category")
+                .fetch_all(&self.pool)
+                .await?;
 
-        let scopes: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT scope, COUNT(*) FROM memories GROUP BY scope"
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let scopes: Vec<(String, i64)> =
+            sqlx::query_as("SELECT scope, COUNT(*) FROM memories GROUP BY scope")
+                .fetch_all(&self.pool)
+                .await?;
 
         let mut cat_map = serde_json::Map::new();
         for (cat, count) in categories {
@@ -212,7 +212,7 @@ impl SqliteStore {
              aliases = excluded.aliases,
              memory_ids = excluded.memory_ids,
              frequency = excluded.frequency,
-             updated_at = excluded.updated_at"
+             updated_at = excluded.updated_at",
         )
         .bind(&entity.name)
         .bind(&entity.aliases)
@@ -237,7 +237,7 @@ impl SqliteStore {
 pub struct EntityRecord {
     pub id: i64,
     pub name: String,
-    pub aliases: String, // JSON array
+    pub aliases: String,    // JSON array
     pub memory_ids: String, // JSON array
     pub frequency: i32,
     pub created_at: i64,

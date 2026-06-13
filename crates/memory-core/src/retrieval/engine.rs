@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use crate::error::Result;
-use crate::models::{Memory, MemoryCategory, SearchQuery, SearchResult, HybridWeights};
-use crate::storage::{SqliteStore, VectorStore, TextIndex};
 use crate::extraction::LlmClient;
+use crate::models::{HybridWeights, Memory, SearchQuery, SearchResult};
 use crate::retrieval::hybrid::normalize_bm25;
+use crate::storage::{SqliteStore, TextIndex, VectorStore};
+use std::sync::Arc;
 
 pub struct RetrievalEngine {
     sqlite: Arc<SqliteStore>,
@@ -37,12 +37,18 @@ impl RetrievalEngine {
     }
 
     pub async fn search(&self, query: &SearchQuery) -> Result<Vec<SearchResult>> {
-        let weights = query.weights.clone().unwrap_or_else(|| self.default_weights.clone());
+        let weights = query
+            .weights
+            .clone()
+            .unwrap_or_else(|| self.default_weights.clone());
         let fetch_k = query.top_k * 3;
 
         // 1. Run Semantic and BM25 searches in parallel
-        let query_vec = self.llm_client.embed(&query.query, &self.embedding_model).await?;
-        
+        let query_vec = self
+            .llm_client
+            .embed(&query.query, &self.embedding_model)
+            .await?;
+
         let sem_results = self.vector_store.search(&query_vec, fetch_k)?;
         let bm25_results_raw = self.text_index.search(&query.query, fetch_k)?;
         let bm25_results = normalize_bm25(&bm25_results_raw);
@@ -56,10 +62,11 @@ impl RetrievalEngine {
             let mut ids = Vec::new();
             for vid in sem_vector_ids {
                 // Look up by vector ID
-                let mem_opt = sqlx::query_as::<_, Memory>("SELECT * FROM memories WHERE vector_id = ?")
-                    .bind(vid)
-                    .fetch_optional(&self.sqlite.pool)
-                    .await?;
+                let mem_opt =
+                    sqlx::query_as::<_, Memory>("SELECT * FROM memories WHERE vector_id = ?")
+                        .bind(vid)
+                        .fetch_optional(&self.sqlite.pool)
+                        .await?;
                 if let Some(m) = mem_opt {
                     ids.push(m);
                 }
@@ -89,13 +96,15 @@ impl RetrievalEngine {
             }
 
             // Semantic score
-            let s_sem = sem_results.iter()
+            let s_sem = sem_results
+                .iter()
                 .find(|(vid, _)| *vid == mem.vector_id)
                 .map(|(_, score)| *score as f64)
                 .unwrap_or(0.0);
 
             // BM25 score
-            let s_bm25 = bm25_results.iter()
+            let s_bm25 = bm25_results
+                .iter()
                 .find(|(mid, _)| mid == &mem.id)
                 .map(|(_, score)| *score as f64)
                 .unwrap_or(0.0);
@@ -106,9 +115,8 @@ impl RetrievalEngine {
             let s_temp = (-self.decay_mu * elapsed_days).exp();
 
             // Weighted combination
-            let score_final = weights.semantic * s_sem
-                + weights.bm25 * s_bm25
-                + weights.temporal * s_temp;
+            let score_final =
+                weights.semantic * s_sem + weights.bm25 * s_bm25 + weights.temporal * s_temp;
 
             scored.push(SearchResult {
                 memory: mem,
@@ -120,7 +128,11 @@ impl RetrievalEngine {
         }
 
         // Sort by final score descending
-        scored.sort_by(|a, b| b.score_final.partial_cmp(&a.score_final).unwrap_or(std::cmp::Ordering::Equal));
+        scored.sort_by(|a, b| {
+            b.score_final
+                .partial_cmp(&a.score_final)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         scored.truncate(query.top_k);
 
         // 4. Update access statistics asynchronously for matched memories
@@ -188,7 +200,11 @@ impl RetrievalEngine {
                 return false;
             }
             let meta: serde_json::Value = serde_json::from_str(&mem.metadata).unwrap_or_default();
-            if meta.get("archived").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if meta
+                .get("archived")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 return false;
             }
         }

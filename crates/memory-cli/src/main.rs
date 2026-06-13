@@ -1,8 +1,8 @@
 use clap::{Parser, Subcommand};
 use memory_core::{
     config::MemoryConfig,
-    service::MemoryService,
     models::{MemoryScope, SearchQuery},
+    service::MemoryService,
 };
 use std::sync::Arc;
 
@@ -73,23 +73,29 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let args = Cli::parse();
-    
+
     let config = MemoryConfig::from_env()?;
     let service = Arc::new(MemoryService::new(config).await?);
 
     match args.command {
-        Commands::Add { content, scope, project_id } => {
+        Commands::Add {
+            content,
+            scope,
+            project_id,
+        } => {
             let memory_scope = MemoryScope::from_str(&scope)
                 .ok_or_else(|| anyhow::anyhow!("Invalid scope: {}", scope))?;
-            
+
             println!("Extracting and consolidating memory...");
-            let memories = service.add_memory(
-                &content,
-                memory_scope,
-                project_id,
-                "cli-session".to_string(),
-                None,
-            ).await?;
+            let memories = service
+                .add_memory(
+                    &content,
+                    memory_scope,
+                    project_id,
+                    "cli-session".to_string(),
+                    None,
+                )
+                .await?;
 
             if memories.is_empty() {
                 println!("No new memories added (either duplicate or low relevance).");
@@ -100,9 +106,14 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Commands::Search { query, top_k, scope, project_id } => {
+        Commands::Search {
+            query,
+            top_k,
+            scope,
+            project_id,
+        } => {
             let memory_scope = scope.and_then(|s| MemoryScope::from_str(&s));
-            
+
             let search_query = SearchQuery {
                 query,
                 top_k,
@@ -125,14 +136,23 @@ async fn main() -> anyhow::Result<()> {
                         "Score: {:.4} [Semantic: {:.4}, BM25: {:.4}, Recency: {:.4}]",
                         res.score_final, res.score_semantic, res.score_bm25, res.score_temporal
                     );
-                    println!("- [{}] (ID: {}): {}", res.memory.category, res.memory.id, res.memory.content);
+                    println!(
+                        "- [{}] (ID: {}): {}",
+                        res.memory.category, res.memory.id, res.memory.content
+                    );
                 }
             }
         }
-        Commands::List { scope, project_id, limit } => {
+        Commands::List {
+            scope,
+            project_id,
+            limit,
+        } => {
             let memory_scope = scope.and_then(|s| MemoryScope::from_str(&s));
-            
-            let memories = service.get_memories(None, memory_scope, project_id, limit).await?;
+
+            let memories = service
+                .get_memories(None, memory_scope, project_id, limit)
+                .await?;
             if memories.is_empty() {
                 println!("No memories stored.");
             } else {

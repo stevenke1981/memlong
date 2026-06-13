@@ -1,0 +1,4 @@
+interface:
+  display_name: "Rust RMCP MCP Server"
+  short_description: "Build and release Rust rmcp MCP servers for OpenCode/Codex."
+  default_prompt: "Use this skill to implement, package, install, and debug a Rust rmcp MCP server that works with OpenCode, Codex config.toml, and GitHub Releases."

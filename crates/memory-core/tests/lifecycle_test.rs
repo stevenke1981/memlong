@@ -1,7 +1,7 @@
 use memory_core::{
     config::MemoryConfig,
-    service::MemoryService,
     models::{MemoryScope, SearchQuery},
+    service::MemoryService,
 };
 use tempfile::tempdir;
 
@@ -10,7 +10,11 @@ async fn test_full_memory_lifecycle() {
     // 1. Create temporary directory for databases & indexes
     let tmp = tempdir().unwrap();
     let db_path = tmp.path().join("memory.db").to_string_lossy().into_owned();
-    let vector_path = tmp.path().join("vectors.usearch").to_string_lossy().into_owned();
+    let vector_path = tmp
+        .path()
+        .join("vectors.usearch")
+        .to_string_lossy()
+        .into_owned();
     let tantivy_path = tmp.path().join("tantivy").to_string_lossy().into_owned();
 
     // Configure test environment variables to mock
@@ -39,26 +43,35 @@ async fn test_full_memory_lifecycle() {
     // 2. Add memory (using the mock responder)
     let conversation = "User: I prefer using tokio::spawn for background tasks in Rust.\n\
                         Assistant: Good practice. I'll remember that preference.";
-    let added = service.add_memory(
-        conversation,
-        MemoryScope::Global,
-        None,
-        "test-session".to_string(),
-        None,
-    ).await.unwrap();
+    let added = service
+        .add_memory(
+            conversation,
+            MemoryScope::Global,
+            None,
+            "test-session".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
 
     assert!(!added.is_empty(), "Should extract at least one memory");
-    assert_eq!(added[0].content, "User prefers using tokio::spawn for background tasks in Rust.");
+    assert_eq!(
+        added[0].content,
+        "User prefers using tokio::spawn for background tasks in Rust."
+    );
     assert_eq!(added[0].category, "Preference");
 
     // 3. Verify ADD-only constraint: same content is deduplicated and not added again
-    let added2 = service.add_memory(
-        conversation,
-        MemoryScope::Global,
-        None,
-        "test-session".to_string(),
-        None,
-    ).await.unwrap();
+    let added2 = service
+        .add_memory(
+            conversation,
+            MemoryScope::Global,
+            None,
+            "test-session".to_string(),
+            None,
+        )
+        .await
+        .unwrap();
     assert!(added2.is_empty(), "Duplicate should be deduplicated");
 
     // 4. Verify Hybrid Retrieval
@@ -80,6 +93,6 @@ async fn test_full_memory_lifecycle() {
 
     // 5. Verify batch consolidation (decay calculation)
     service.consolidate_memories().await.unwrap();
-    
+
     // Clean up temp files automatically by dropping tmp
 }

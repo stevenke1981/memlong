@@ -1,12 +1,12 @@
-use std::sync::Arc;
-use uuid::Uuid;
-use crate::error::{MemoryError, Result};
-use crate::models::{Memory, MemoryScope};
-use crate::extraction::ExtractedMemory;
+use crate::consolidation::decay::{calculate_retention, initial_stability, reinforce_stability};
 use crate::consolidation::dedup::entity_overlap;
 use crate::consolidation::entity::link_entities;
-use crate::consolidation::decay::{calculate_retention, initial_stability, reinforce_stability};
-use crate::storage::{SqliteStore, VectorStore, TextIndex};
+use crate::error::Result;
+use crate::extraction::ExtractedMemory;
+use crate::models::{Memory, MemoryScope};
+use crate::storage::{SqliteStore, TextIndex, VectorStore};
+use std::sync::Arc;
+use uuid::Uuid;
 
 pub struct ConsolidationEngine {
     sqlite: Arc<SqliteStore>,
@@ -36,7 +36,6 @@ impl ConsolidationEngine {
         }
     }
 
-
     /// Consolidates a single extracted memory.
     pub async fn consolidate_single(
         &self,
@@ -51,7 +50,7 @@ impl ConsolidationEngine {
 
         // 1. Search top 5 similar candidates in vector store
         let candidates = self.vector_store.search(&vector, 5)?;
-        
+
         // 2. Scan candidates for duplicates
         for (vector_id, similarity) in candidates {
             let similarity_f64 = similarity as f64;
@@ -62,17 +61,22 @@ impl ConsolidationEngine {
                 // Let's find memory by vector_id in SQLite.
                 if let Some(mem) = self.get_memory_by_vector_id(vector_id).await? {
                     // Update access stats
-                    self.sqlite.update_access_stats(&[mem.id.clone()]).await?;
+                    self.sqlite
+                        .update_access_stats(std::slice::from_ref(&mem.id))
+                        .await?;
                     return Ok(None); // Deduplicated
                 }
             } else if similarity_f64 > self.near_dedup_threshold {
                 // Near duplicate: compare entity overlap
                 if let Some(mem) = self.get_memory_by_vector_id(vector_id).await? {
-                    let existing_entities: Vec<String> = serde_json::from_str(&mem.entities).unwrap_or_default();
+                    let existing_entities: Vec<String> =
+                        serde_json::from_str(&mem.entities).unwrap_or_default();
                     let overlap = entity_overlap(&ext.entities, &existing_entities);
                     if overlap > 0.5 {
                         // Synonym
-                        self.sqlite.update_access_stats(&[mem.id.clone()]).await?;
+                        self.sqlite
+                            .update_access_stats(std::slice::from_ref(&mem.id))
+                            .await?;
                         return Ok(None); // Deduplicated
                     }
                 }
@@ -88,9 +92,9 @@ impl ConsolidationEngine {
         let next_vector_id = self.sqlite.get_max_vector_id().await? + 1;
 
         let memory_id = Uuid::new_v4().to_string();
-        
+
         let entities_str = serde_json::to_string(&ext.entities)?;
-        
+
         let mut meta_map = if let Some(serde_json::Value::Object(m)) = metadata_custom {
             m
         } else {
@@ -123,7 +127,12 @@ impl ConsolidationEngine {
         // Add to stores
         self.sqlite.insert_memory(&memory).await?;
         self.vector_store.add(next_vector_id, &vector)?;
-        self.text_index.add_document(&memory.id, &memory.content, &memory.category, &memory.entities)?;
+        self.text_index.add_document(
+            &memory.id,
+            &memory.content,
+            &memory.category,
+            &memory.entities,
+        )?;
 
         // Entity linking
         link_entities(&self.sqlite, &memory.id, &ext.entities, now_ms).await?;
@@ -138,8 +147,13 @@ impl ConsolidationEngine {
 
         for mut mem in memories {
             // Check if already archived
-            let mut meta: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&mem.metadata).unwrap_or_default();
-            if meta.get("archived").and_then(|v| v.as_bool()).unwrap_or(false) {
+            let mut meta: serde_json::Map<String, serde_json::Value> =
+                serde_json::from_str(&mem.metadata).unwrap_or_default();
+            if meta
+                .get("archived")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 continue;
             }
 
@@ -158,10 +172,15 @@ impl ConsolidationEngine {
             mem.retention_factor = retention;
 
             // Update importance score
-            let llm_importance = meta.get("llm_importance").and_then(|v| v.as_f64()).unwrap_or(2.5) / 5.0;
+            let llm_importance = meta
+                .get("llm_importance")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(2.5)
+                / 5.0;
             let access_score = (mem.access_count as f64 / 10.0).min(1.0);
             let recency_score = (-self.decay_lambda * elapsed_days).exp();
-            let new_importance = (0.5 * llm_importance + 0.3 * access_score + 0.2 * recency_score).clamp(0.0, 1.0);
+            let new_importance =
+                (0.5 * llm_importance + 0.3 * access_score + 0.2 * recency_score).clamp(0.0, 1.0);
             mem.importance_score = new_importance;
 
             if retention < 0.1 {
@@ -173,7 +192,14 @@ impl ConsolidationEngine {
             mem.updated_at = now_ms;
 
             // Save to SQLite
-            self.sqlite.update_decay_parameters(&mem.id, mem.importance_score, mem.retention_factor, mem.updated_at).await?;
+            self.sqlite
+                .update_decay_parameters(
+                    &mem.id,
+                    mem.importance_score,
+                    mem.retention_factor,
+                    mem.updated_at,
+                )
+                .await?;
             // Note: Since this is decay parameter update only, we don't modify memory content.
         }
 
@@ -182,12 +208,10 @@ impl ConsolidationEngine {
 
     async fn get_memory_by_vector_id(&self, vector_id: i64) -> Result<Option<Memory>> {
         // Query memory by vector_id in SQLite
-        let mem = sqlx::query_as::<_, Memory>(
-            "SELECT * FROM memories WHERE vector_id = ?"
-        )
-        .bind(vector_id)
-        .fetch_optional(&self.sqlite.pool) // Access pool directly since we added it to SqliteStore or can do query
-        .await?;
+        let mem = sqlx::query_as::<_, Memory>("SELECT * FROM memories WHERE vector_id = ?")
+            .bind(vector_id)
+            .fetch_optional(&self.sqlite.pool) // Access pool directly since we added it to SqliteStore or can do query
+            .await?;
         Ok(mem)
     }
 }

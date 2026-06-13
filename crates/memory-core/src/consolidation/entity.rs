@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::storage::sqlite::{SqliteStore, EntityRecord};
+use crate::storage::sqlite::{EntityRecord, SqliteStore};
 
 pub async fn link_entities(
     sqlite: &SqliteStore,
@@ -16,8 +16,8 @@ pub async fn link_entities(
         let existing = sqlite.get_entity(name_trimmed).await?;
         match existing {
             Some(mut rec) => {
-                let mut memory_ids: Vec<String> = serde_json::from_str(&rec.memory_ids)
-                    .unwrap_or_default();
+                let mut memory_ids: Vec<String> =
+                    serde_json::from_str(&rec.memory_ids).unwrap_or_default();
                 if !memory_ids.contains(&memory_id.to_string()) {
                     memory_ids.push(memory_id.to_string());
                 }

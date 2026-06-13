@@ -31,7 +31,8 @@ tantivy          = { version = "0.22", default-features = true }
 
 
 # MCP Protocol
-rmcp             = { version = "0.1", features = ["server", "transport-io"] }
+rmcp             = { version = "0.1", features = ["server", "transport-io", "macros"] }
+schemars         = "0.8"
 
 # HTTP Client (LLM API)
 reqwest          = { version = "0.12", features = ["json"] }

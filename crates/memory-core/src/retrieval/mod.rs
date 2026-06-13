@@ -1,4 +1,4 @@
-pub mod hybrid;
 pub mod engine;
+pub mod hybrid;
 
 pub use engine::RetrievalEngine;

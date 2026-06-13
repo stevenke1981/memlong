@@ -1346,6 +1346,7 @@ dependencies = [
  "anyhow",
  "memory-core",
  "rmcp",
+ "schemars",
  "serde",
  "serde_json",
  "tokio",

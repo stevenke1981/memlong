@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use serde::{Deserialize, Serialize};
 use crate::error::{MemoryError, Result};
-use crate::models::MemoryCategory;
 use crate::extraction::llm_client::LlmClient;
-use crate::extraction::prompt::{EXTRACTION_SYSTEM_PROMPT, extraction_user_prompt};
+use crate::extraction::prompt::{extraction_user_prompt, EXTRACTION_SYSTEM_PROMPT};
+use crate::models::MemoryCategory;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct ExtractionConfig {
@@ -47,7 +47,11 @@ pub struct ExtractedMemory {
 }
 
 impl ExtractionEngine {
-    pub fn new(llm_client: Arc<LlmClient>, embedding_model: &str, config: ExtractionConfig) -> Self {
+    pub fn new(
+        llm_client: Arc<LlmClient>,
+        embedding_model: &str,
+        config: ExtractionConfig,
+    ) -> Self {
         Self {
             llm_client,
             embedding_model: embedding_model.to_string(),
@@ -57,8 +61,9 @@ impl ExtractionEngine {
 
     pub async fn extract(&self, conversation: &str) -> Result<Vec<ExtractedMemory>> {
         let user_prompt = extraction_user_prompt(conversation);
-        
-        let raw_json = self.llm_client
+
+        let raw_json = self
+            .llm_client
             .complete(
                 EXTRACTION_SYSTEM_PROMPT,
                 &user_prompt,
@@ -78,11 +83,16 @@ impl ExtractionEngine {
             cleaned = cleaned.trim_end_matches("```").trim();
         }
 
-        let response: ExtractionResponse = serde_json::from_str(cleaned)
-            .map_err(|e| MemoryError::ExtractionParseFailed(format!("Failed to parse JSON: {}. Cleaned text was: {}", e, cleaned)))?;
+        let response: ExtractionResponse = serde_json::from_str(cleaned).map_err(|e| {
+            MemoryError::ExtractionParseFailed(format!(
+                "Failed to parse JSON: {}. Cleaned text was: {}",
+                e, cleaned
+            ))
+        })?;
 
         // Apply quality filters
-        let filtered: Vec<_> = response.memories
+        let filtered: Vec<_> = response
+            .memories
             .into_iter()
             .filter(|m| m.confidence >= self.config.min_confidence)
             .filter(|m| m.importance >= self.config.min_importance)

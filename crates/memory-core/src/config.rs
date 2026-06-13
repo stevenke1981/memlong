@@ -1,6 +1,6 @@
+use crate::error::Result;
 use std::env;
 use std::path::PathBuf;
-use crate::error::{MemoryError, Result};
 
 #[derive(Debug, Clone)]
 pub struct MemoryConfig {
@@ -34,28 +34,31 @@ impl MemoryConfig {
         let db_path = env::var("MEMORY_DB_PATH")
             .unwrap_or_else(|_| base_dir.join("memory.db").to_string_lossy().into_owned());
 
-        let vector_path = env::var("MEMORY_VECTOR_PATH")
-            .unwrap_or_else(|_| base_dir.join("vectors.usearch").to_string_lossy().into_owned());
+        let vector_path = env::var("MEMORY_VECTOR_PATH").unwrap_or_else(|_| {
+            base_dir
+                .join("vectors.usearch")
+                .to_string_lossy()
+                .into_owned()
+        });
 
         let tantivy_path = env::var("MEMORY_TANTIVY_PATH")
             .unwrap_or_else(|_| base_dir.join("tantivy").to_string_lossy().into_owned());
 
-        let llm_api_base = env::var("LLM_API_BASE")
-            .unwrap_or_else(|_| "https://api.anthropic.com/v1".to_string());
+        let llm_api_base =
+            env::var("LLM_API_BASE").unwrap_or_else(|_| "https://api.anthropic.com/v1".to_string());
 
-        let llm_api_key = env::var("LLM_API_KEY")
-            .unwrap_or_else(|_| "local".to_string());
+        let llm_api_key = env::var("LLM_API_KEY").unwrap_or_else(|_| "local".to_string());
 
-        let embedding_model = env::var("EMBEDDING_MODEL")
-            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
+        let embedding_model =
+            env::var("EMBEDDING_MODEL").unwrap_or_else(|_| "text-embedding-3-small".to_string());
 
         let embedding_dim = env::var("EMBEDDING_DIM")
             .ok()
             .and_then(|val| val.parse().ok())
             .unwrap_or(1536);
 
-        let extraction_model = env::var("EXTRACTION_MODEL")
-            .unwrap_or_else(|_| "claude-sonnet-4-6".to_string());
+        let extraction_model =
+            env::var("EXTRACTION_MODEL").unwrap_or_else(|_| "claude-sonnet-4-6".to_string());
 
         let extraction_max_tokens = env::var("EXTRACTION_MAX_TOKENS")
             .ok()

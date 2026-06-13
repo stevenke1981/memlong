@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::models::memory::{Memory, MemoryCategory, MemoryScope};
+use serde::{Deserialize, Serialize};
 
 /// 混合檢索查詢參數
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,10 +49,18 @@ pub struct HybridWeights {
     pub temporal: f64,
 }
 
-fn default_top_k() -> usize { 10 }
-fn default_semantic_weight() -> f64 { 0.60 }
-fn default_bm25_weight() -> f64 { 0.30 }
-fn default_temporal_weight() -> f64 { 0.10 }
+fn default_top_k() -> usize {
+    10
+}
+fn default_semantic_weight() -> f64 {
+    0.60
+}
+fn default_bm25_weight() -> f64 {
+    0.30
+}
+fn default_temporal_weight() -> f64 {
+    0.10
+}
 
 impl Default for HybridWeights {
     fn default() -> Self {

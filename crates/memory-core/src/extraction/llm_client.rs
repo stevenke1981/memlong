@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::error::{MemoryError, Result};
+use serde::{Deserialize, Serialize};
 
 pub struct LlmClient {
     client: reqwest::Client,
@@ -68,7 +68,14 @@ impl LlmClient {
         }
     }
 
-    pub async fn complete(&self, system_prompt: &str, user_prompt: &str, model: &str, max_tokens: u32, temperature: f32) -> Result<String> {
+    pub async fn complete(
+        &self,
+        system_prompt: &str,
+        user_prompt: &str,
+        model: &str,
+        max_tokens: u32,
+        temperature: f32,
+    ) -> Result<String> {
         if self.api_key == "mock" || self.api_key == "local" && self.api_base == "mock" {
             // Mock response for testing
             return Ok(r#"
@@ -83,11 +90,12 @@ impl LlmClient {
                 }
               ]
             }
-            "#.to_string());
+            "#
+            .to_string());
         }
 
         let url = format!("{}/chat/completions", self.api_base);
-        
+
         let messages = vec![
             ChatMessage {
                 role: "system".to_string(),
@@ -109,7 +117,9 @@ impl LlmClient {
             }),
         };
 
-        let response = self.client.post(&url)
+        let response = self
+            .client
+            .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&req)
@@ -120,14 +130,21 @@ impl LlmClient {
         if !status.is_success() {
             let err_text = response.text().await.unwrap_or_default();
             return Err(MemoryError::ExtractionFailed(format!(
-                "HTTP Status {}: {}", status, err_text
+                "HTTP Status {}: {}",
+                status, err_text
             )));
         }
 
         let resp: ChatCompletionResponse = response.json().await?;
-        let text = resp.choices.first()
+        let text = resp
+            .choices
+            .first()
             .and_then(|choice| choice.message.content.clone())
-            .ok_or_else(|| MemoryError::ExtractionFailed("No choices returned from LLM completions".to_string()))?;
+            .ok_or_else(|| {
+                MemoryError::ExtractionFailed(
+                    "No choices returned from LLM completions".to_string(),
+                )
+            })?;
 
         Ok(text)
     }
@@ -144,7 +161,9 @@ impl LlmClient {
             input: text.to_string(),
         };
 
-        let response = self.client.post(&url)
+        let response = self
+            .client
+            .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             .json(&req)
@@ -155,14 +174,19 @@ impl LlmClient {
         if !status.is_success() {
             let err_text = response.text().await.unwrap_or_default();
             return Err(MemoryError::Other(format!(
-                "Embedding API error {}: {}", status, err_text
+                "Embedding API error {}: {}",
+                status, err_text
             )));
         }
 
         let resp: EmbeddingResponse = response.json().await?;
-        let vector = resp.data.first()
+        let vector = resp
+            .data
+            .first()
             .map(|d| d.embedding.clone())
-            .ok_or_else(|| MemoryError::Other("No embedding returned from embedding API".to_string()))?;
+            .ok_or_else(|| {
+                MemoryError::Other("No embedding returned from embedding API".to_string())
+            })?;
 
         Ok(vector)
     }

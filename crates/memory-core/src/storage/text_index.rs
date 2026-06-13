@@ -1,8 +1,8 @@
+use crate::error::{MemoryError, Result};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tantivy::schema::{Schema, STORED, STRING, TEXT};
-use tantivy::{doc, Index, IndexReader, IndexWriter, Term, collector::TopDocs, query::QueryParser};
-use crate::error::{MemoryError, Result};
+use tantivy::{collector::TopDocs, doc, query::QueryParser, Index, IndexReader, IndexWriter, Term};
 
 pub struct TextIndex {
     index: Index,
@@ -29,11 +29,14 @@ impl TextIndex {
         }
 
         let mmap_dir = tantivy::directory::MmapDirectory::open(path)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
         let index = Index::open_or_create(mmap_dir, schema)?;
-        
+
         // Create reader
-        let reader = index.reader_builder().reload_policy(tantivy::ReloadPolicy::OnCommitWithDelay).try_into()?;
+        let reader = index
+            .reader_builder()
+            .reload_policy(tantivy::ReloadPolicy::OnCommitWithDelay)
+            .try_into()?;
 
         // Create writer with 30MB buffer
         let writer = index.writer(30_000_000)?;
@@ -49,7 +52,13 @@ impl TextIndex {
         })
     }
 
-    pub fn add_document(&self, id: &str, content: &str, category: &str, entities: &str) -> Result<()> {
+    pub fn add_document(
+        &self,
+        id: &str,
+        content: &str,
+        category: &str,
+        entities: &str,
+    ) -> Result<()> {
         let mut writer_guard = self.writer.lock().map_err(|e| {
             MemoryError::Other(format!("Failed to acquire text index lock: {:?}", e))
         })?;
@@ -79,22 +88,23 @@ impl TextIndex {
 
     pub fn search(&self, query_str: &str, limit: usize) -> Result<Vec<(String, f32)>> {
         let searcher = self.reader.searcher();
-        
+
         // Search in content and entities fields
-        let query_parser = QueryParser::for_index(&self.index, vec![self.content_field, self.entities_field]);
-        let query = query_parser.parse_query(query_str).map_err(|e| {
-            MemoryError::Other(format!("Failed to parse query: {:?}", e))
-        })?;
+        let query_parser =
+            QueryParser::for_index(&self.index, vec![self.content_field, self.entities_field]);
+        let query = query_parser
+            .parse_query(query_str)
+            .map_err(|e| MemoryError::Other(format!("Failed to parse query: {:?}", e)))?;
 
         let top_docs = searcher.search(&query, &TopDocs::with_limit(limit))?;
-        
+
         let mut results = Vec::new();
         for (score, doc_address) in top_docs {
             let retrieved_doc: tantivy::TantivyDocument = searcher.doc(doc_address)?;
-            if let Some(id_val) = retrieved_doc.get_first(self.id_field) {
-                if let tantivy::schema::OwnedValue::Str(id_str) = id_val {
-                    results.push((id_str.clone(), score));
-                }
+            if let Some(tantivy::schema::OwnedValue::Str(id_str)) =
+                retrieved_doc.get_first(self.id_field)
+            {
+                results.push((id_str.clone(), score));
             }
         }
 

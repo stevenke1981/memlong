@@ -1,12 +1,13 @@
-use std::sync::Arc;
-use crate::error::Result;
 use crate::config::MemoryConfig;
-use crate::models::{Memory, MemoryScope, SearchQuery, SearchResult, HybridWeights};
-use crate::extraction::{LlmClient, ExtractionEngine, ExtractionConfig};
 use crate::consolidation::ConsolidationEngine;
+use crate::error::Result;
+use crate::extraction::{ExtractionConfig, ExtractionEngine, LlmClient};
+use crate::models::{HybridWeights, Memory, MemoryScope, SearchQuery, SearchResult};
 use crate::retrieval::RetrievalEngine;
-use crate::storage::{SqliteStore, VectorStore, TextIndex};
+use crate::storage::{SqliteStore, TextIndex, VectorStore};
+use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct MemoryService {
     sqlite: Arc<SqliteStore>,
     vector_store: Arc<VectorStore>,
@@ -20,11 +21,8 @@ pub struct MemoryService {
 impl MemoryService {
     pub async fn new(config: MemoryConfig) -> Result<Self> {
         let sqlite = Arc::new(SqliteStore::new(&config.db_path).await?);
-        
-        let vector_store = Arc::new(VectorStore::new(
-            &config.vector_path,
-            config.embedding_dim,
-        )?);
+
+        let vector_store = Arc::new(VectorStore::new(&config.vector_path, config.embedding_dim)?);
 
         let text_index = Arc::new(TextIndex::new(&config.tantivy_path)?);
 
@@ -91,21 +89,25 @@ impl MemoryService {
     ) -> Result<Vec<Memory>> {
         // 1. Extract memory chunks from content
         let extracted_chunks = self.extraction.extract(content).await?;
-        
+
         let mut added = Vec::new();
         for chunk in extracted_chunks {
             // 2. Embed content
             let vector = self.extraction.embed(&chunk.content).await?;
-            
+
             // 3. Consolidate and insert
-            if let Some(mem) = self.consolidation.consolidate_single(
-                chunk,
-                vector,
-                scope.clone(),
-                project_id.clone(),
-                session_id.clone(),
-                metadata.clone(),
-            ).await? {
+            if let Some(mem) = self
+                .consolidation
+                .consolidate_single(
+                    chunk,
+                    vector,
+                    scope.clone(),
+                    project_id.clone(),
+                    session_id.clone(),
+                    metadata.clone(),
+                )
+                .await?
+            {
                 added.push(mem);
             }
         }
@@ -130,11 +132,9 @@ impl MemoryService {
             self.sqlite.get_by_ids(&ids_list).await
         } else {
             let scope_str = scope.map(|s| s.as_str().to_string());
-            self.sqlite.list_memories(
-                scope_str.as_deref(),
-                project_id.as_deref(),
-                limit,
-            ).await
+            self.sqlite
+                .list_memories(scope_str.as_deref(), project_id.as_deref(), limit)
+                .await
         }
     }
 

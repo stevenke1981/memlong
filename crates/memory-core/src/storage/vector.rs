@@ -1,8 +1,8 @@
+use crate::error::{MemoryError, Result};
 use std::fs::OpenOptions;
-use std::io::{Read, Write, Seek, SeekFrom};
+use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::RwLock;
-use crate::error::{MemoryError, Result};
 
 pub struct VectorRecord {
     pub id: i64,
@@ -30,11 +30,13 @@ impl VectorStore {
             for i in 0..num_records {
                 let offset = i * record_size;
                 let id = i64::from_le_bytes(buffer[offset..offset + 8].try_into().unwrap());
-                
+
                 let mut vector = Vec::with_capacity(dimensions);
                 for d in 0..dimensions {
                     let float_offset = offset + 8 + d * 4;
-                    let float_val = f32::from_le_bytes(buffer[float_offset..float_offset + 4].try_into().unwrap());
+                    let float_val = f32::from_le_bytes(
+                        buffer[float_offset..float_offset + 4].try_into().unwrap(),
+                    );
                     vector.push(float_val);
                 }
                 records.push(VectorRecord { id, vector });
@@ -45,7 +47,11 @@ impl VectorStore {
                 std::fs::create_dir_all(parent)?;
             }
             // Create an empty file
-            OpenOptions::new().write(true).create(true).open(path)?;
+            OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(path)?;
         }
 
         Ok(Self {
@@ -65,7 +71,7 @@ impl VectorStore {
         }
 
         // 1. Append to file
-        let mut file = OpenOptions::new().write(true).append(true).open(&self.path)?;
+        let mut file = OpenOptions::new().append(true).open(&self.path)?;
         file.write_all(&id.to_le_bytes())?;
         for &val in vector {
             file.write_all(&val.to_le_bytes())?;
