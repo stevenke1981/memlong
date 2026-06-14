@@ -1,9 +1,13 @@
 use memory_core::{config::MemoryConfig, service::MemoryService};
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing_subscriber::fmt::format::FmtSpan;
 
 mod server;
+
+const SERVER_NAME: &str = "opencode-memory";
+const LEGACY_SERVER_NAMES: &[&str] = &["memory-mcp-server", "memory-mcp", "memlong-memory"];
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -24,12 +28,13 @@ async fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
             "install" => {
-                run_install().await?;
+                let json_output = args.iter().skip(1).any(|arg| arg == "--json");
+                run_install(json_output).await?;
                 return Ok(());
             }
             _ => {
                 eprintln!("Unknown command: {}", cmd);
-                eprintln!("Available commands: --version, health, install");
+                eprintln!("Available commands: --version, health, install [--json]");
                 std::process::exit(1);
             }
         }
@@ -94,76 +99,150 @@ async fn run_health_check() -> serde_json::Value {
     }
 }
 
-async fn run_install() -> anyhow::Result<()> {
+#[derive(Debug, Serialize)]
+struct InstallReport {
+    server_name: &'static str,
+    binary_path: String,
+    configured_clients: Vec<ClientConfigReport>,
+    restart_required: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct ClientConfigReport {
+    client: &'static str,
+    path: String,
+    status: &'static str,
+    message: String,
+}
+
+async fn run_install(json_output: bool) -> anyhow::Result<()> {
     let current_exe = std::env::current_exe()?;
     let exe_path_str = current_exe.to_string_lossy().to_string();
-    println!(
-        "Installing agent configurations using binary path: {}",
-        exe_path_str
-    );
+    if !json_output {
+        println!(
+            "Installing agent configurations using binary path: {}",
+            exe_path_str
+        );
+    }
 
     let user_profile = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .map_err(|_| anyhow::anyhow!("Could not find user profile directory"))?;
 
-    // 1. Configure OpenCode
-    let opencode_jsonc_path = opencode_config_path(&user_profile);
-    let mut configured_opencode = false;
-    if let Err(e) = update_opencode_config(
-        opencode_jsonc_path.to_string_lossy().as_ref(),
-        &exe_path_str,
-    ) {
-        eprintln!(
-            "Warning: Failed to update OpenCode config at {}: {}",
-            opencode_jsonc_path.display(),
-            e
-        );
-    } else {
-        println!(
-            "Successfully configured OpenCode at {}",
-            opencode_jsonc_path.display()
-        );
-        configured_opencode = true;
-    }
+    let mut configured_clients = Vec::new();
 
-    // 2. Configure Codex
-    let codex_path_1 = format!("{}/.codex/config.toml", user_profile);
-    let codex_path_2 = format!("{}/.claude/.codex/config.toml", user_profile);
-    let mut configured_codex = false;
-    for path in &[&codex_path_1, &codex_path_2] {
-        if std::path::Path::new(path).exists() || **path == codex_path_1 {
-            if let Some(parent) = std::path::Path::new(path).parent() {
-                let _ = std::fs::create_dir_all(parent);
+    for path in opencode_config_paths(&user_profile) {
+        match update_opencode_config(&path, &exe_path_str) {
+            Ok(()) => {
+                if !json_output {
+                    println!("Successfully configured OpenCode at {}", path.display());
+                }
+                configured_clients.push(ClientConfigReport {
+                    client: "opencode",
+                    path: path.to_string_lossy().to_string(),
+                    status: "configured",
+                    message: format!("registered {SERVER_NAME} MCP server"),
+                });
             }
-            if let Err(e) = update_codex_config(path, &exe_path_str) {
-                eprintln!("Warning: Failed to update Codex config at {}: {}", path, e);
-            } else {
-                println!("Successfully configured Codex at {}", path);
-                configured_codex = true;
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to update OpenCode config at {}: {}",
+                    path.display(),
+                    e
+                );
+                configured_clients.push(ClientConfigReport {
+                    client: "opencode",
+                    path: path.to_string_lossy().to_string(),
+                    status: "error",
+                    message: e.to_string(),
+                });
             }
         }
     }
 
-    if configured_opencode || configured_codex {
+    for path in codex_config_paths(&user_profile) {
+        match update_codex_config(&path, &exe_path_str) {
+            Ok(()) => {
+                if !json_output {
+                    println!("Successfully configured Codex at {}", path.display());
+                }
+                configured_clients.push(ClientConfigReport {
+                    client: "codex",
+                    path: path.to_string_lossy().to_string(),
+                    status: "configured",
+                    message: format!("registered {SERVER_NAME} MCP server"),
+                });
+            }
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to update Codex config at {}: {}",
+                    path.display(),
+                    e
+                );
+                configured_clients.push(ClientConfigReport {
+                    client: "codex",
+                    path: path.to_string_lossy().to_string(),
+                    status: "error",
+                    message: e.to_string(),
+                });
+            }
+        }
+    }
+
+    let report = InstallReport {
+        server_name: SERVER_NAME,
+        binary_path: exe_path_str,
+        restart_required: configured_clients
+            .iter()
+            .any(|entry| entry.status == "configured"),
+        configured_clients,
+    };
+
+    if json_output {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+    } else if report.restart_required {
         println!(
             "Installation complete! Please restart your OpenCode/Codex agent to apply changes."
         );
     } else {
-        println!("No active OpenCode or Codex configuration directories were configured.");
+        println!("No OpenCode or Codex configuration was updated.");
     }
 
     Ok(())
 }
 
-fn opencode_config_path(user_profile: &str) -> PathBuf {
-    Path::new(user_profile)
-        .join(".config")
-        .join("opencode")
-        .join("opencode.jsonc")
+fn opencode_config_paths(user_profile: &str) -> Vec<PathBuf> {
+    let dir = Path::new(user_profile).join(".config").join("opencode");
+    let jsonc_path = dir.join("opencode.jsonc");
+    let json_path = dir.join("opencode.json");
+
+    let mut paths = Vec::new();
+    if jsonc_path.exists() {
+        paths.push(jsonc_path);
+    }
+    if json_path.exists() {
+        paths.push(json_path.clone());
+    }
+    if paths.is_empty() {
+        paths.push(json_path);
+    }
+    paths
 }
 
-fn update_opencode_config(path: &str, exe_path: &str) -> anyhow::Result<()> {
-    let path = Path::new(path);
+fn codex_config_paths(user_profile: &str) -> Vec<PathBuf> {
+    let codex_path = Path::new(user_profile).join(".codex").join("config.toml");
+    let claude_codex_path = Path::new(user_profile)
+        .join(".claude")
+        .join(".codex")
+        .join("config.toml");
+    let mut paths = vec![codex_path];
+    if claude_codex_path.exists() {
+        paths.push(claude_codex_path);
+    }
+    paths
+}
+
+fn update_opencode_config(path: &Path, exe_path: &str) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -190,8 +269,12 @@ fn update_opencode_config(path: &str, exe_path: &str) -> anyhow::Result<()> {
         *mcp = serde_json::json!({});
     }
 
-    mcp.as_object_mut().unwrap().insert(
-        "opencode-memory".to_string(),
+    let mcp_object = mcp.as_object_mut().unwrap();
+    for legacy_name in LEGACY_SERVER_NAMES {
+        mcp_object.remove(*legacy_name);
+    }
+    mcp_object.insert(
+        SERVER_NAME.to_string(),
         serde_json::json!({
             "type": "local",
             "command": [exe_path],
@@ -264,66 +347,68 @@ fn strip_jsonc_comments(input: &str) -> String {
     output
 }
 
-fn update_codex_config(path: &str, exe_path: &str) -> anyhow::Result<()> {
-    let content = if std::path::Path::new(path).exists() {
+fn update_codex_config(path: &Path, exe_path: &str) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let content = if path.exists() {
         std::fs::read_to_string(path)?
     } else {
         "".to_string()
     };
 
-    let mut lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
-    let mut block_start = None;
-
-    for (i, line) in lines.iter().enumerate() {
-        let trimmed = line.trim();
-        if trimmed == "[mcp_servers.opencode-memory]" {
-            block_start = Some(i);
-            break;
-        }
-    }
-
+    let mut lines = remove_codex_mcp_blocks(
+        &content,
+        &[SERVER_NAME]
+            .iter()
+            .chain(LEGACY_SERVER_NAMES.iter())
+            .copied()
+            .collect::<Vec<_>>(),
+    );
     let clean_exe_path = exe_path.replace("\\", "/");
 
-    if let Some(start_idx) = block_start {
-        let mut i = start_idx + 1;
-        let mut command_updated = false;
-        let mut args_updated = false;
-
-        while i < lines.len() {
-            let trimmed = lines[i].trim();
-            if trimmed.starts_with('[') {
-                break;
-            }
-            if trimmed.starts_with("command") {
-                lines[i] = format!("command = \"{}\"", clean_exe_path);
-                command_updated = true;
-            } else if trimmed.starts_with("args") {
-                lines[i] = "args = []".to_string();
-                args_updated = true;
-            }
-            i += 1;
-        }
-
-        let mut insert_offset = 0;
-        if !command_updated {
-            lines.insert(start_idx + 1, format!("command = \"{}\"", clean_exe_path));
-            insert_offset += 1;
-        }
-        if !args_updated {
-            lines.insert(start_idx + 1 + insert_offset, "args = []".to_string());
-        }
-    } else {
-        if !lines.is_empty() && !lines.last().unwrap().is_empty() {
-            lines.push("".to_string());
-        }
-        lines.push("[mcp_servers.opencode-memory]".to_string());
-        lines.push(format!("command = \"{}\"", clean_exe_path));
-        lines.push("args = []".to_string());
+    while lines.last().is_some_and(|line| line.trim().is_empty()) {
+        lines.pop();
     }
+    if !lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines.push(format!("[mcp_servers.{SERVER_NAME}]"));
+    lines.push(format!(
+        "command = \"{}\"",
+        toml_escape_string(&clean_exe_path)
+    ));
+    lines.push("args = []".to_string());
 
     let new_content = lines.join("\n");
     std::fs::write(path, new_content)?;
     Ok(())
+}
+
+fn remove_codex_mcp_blocks(content: &str, server_names: &[&str]) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut skip_current_block = false;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            skip_current_block = server_names.iter().any(|name| {
+                trimmed == format!("[mcp_servers.{name}]")
+                    || trimmed.starts_with(&format!("[mcp_servers.{name}."))
+            });
+        }
+
+        if !skip_current_block {
+            result.push(line.to_string());
+        }
+    }
+
+    result
+}
+
+fn toml_escape_string(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
 #[cfg(test)]
@@ -331,16 +416,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn opencode_config_path_uses_current_config_directory() {
-        let path = opencode_config_path("C:\\Users\\eda");
+    fn opencode_config_paths_use_existing_files_or_create_json() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("opencode-memory-path-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let user_profile = temp_dir.join("user");
+        let config_dir = user_profile.join(".config").join("opencode");
+        std::fs::create_dir_all(&config_dir).unwrap();
+
+        let default_paths = opencode_config_paths(user_profile.to_str().unwrap());
+        assert_eq!(default_paths, vec![config_dir.join("opencode.json")]);
+
+        std::fs::write(config_dir.join("opencode.jsonc"), "{}").unwrap();
+        std::fs::write(config_dir.join("opencode.json"), "{}").unwrap();
+        let existing_paths = opencode_config_paths(user_profile.to_str().unwrap());
         assert_eq!(
-            path,
-            std::path::PathBuf::from("C:\\Users\\eda\\.config\\opencode\\opencode.jsonc")
+            existing_paths,
+            vec![
+                config_dir.join("opencode.jsonc"),
+                config_dir.join("opencode.json")
+            ]
         );
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 
     #[test]
-    fn update_opencode_config_preserves_existing_mcp_entries() {
+    fn update_opencode_config_preserves_existing_mcp_entries_and_removes_legacy_names() {
         let temp_dir =
             std::env::temp_dir().join(format!("opencode-memory-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp_dir);
@@ -355,13 +457,18 @@ mod tests {
       "type": "local",
       "command": ["existing.exe"],
       "enabled": true
+    },
+    "memory-mcp-server": {
+      "type": "local",
+      "command": ["old.exe"],
+      "enabled": true
     }
   }
 }"#,
         )
         .unwrap();
 
-        update_opencode_config(config_path.to_str().unwrap(), "C:\\tools\\memory.exe").unwrap();
+        update_opencode_config(&config_path, "C:\\tools\\memory.exe").unwrap();
         let updated: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
 
@@ -373,6 +480,7 @@ mod tests {
             updated["mcp"]["opencode-memory"]["command"][0],
             serde_json::json!("C:\\tools\\memory.exe")
         );
+        assert!(updated["mcp"].get("memory-mcp-server").is_none());
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
@@ -396,7 +504,7 @@ mod tests {
         )
         .unwrap();
 
-        update_opencode_config(config_path.to_str().unwrap(), "memory.exe").unwrap();
+        update_opencode_config(&config_path, "memory.exe").unwrap();
         let updated: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
 
@@ -408,6 +516,73 @@ mod tests {
             updated["mcp"]["opencode-memory"]["command"][0],
             serde_json::json!("memory.exe")
         );
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn update_codex_config_replaces_current_and_legacy_blocks() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("opencode-memory-codex-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let config_path = temp_dir.join("config.toml");
+        std::fs::write(
+            &config_path,
+            r#"model = "gpt-5"
+
+[mcp_servers.other]
+command = "other.exe"
+args = ["--stdio"]
+
+[mcp_servers.opencode-memory]
+command = "old-memory.exe"
+args = ["old"]
+
+[mcp_servers.opencode-memory.env]
+MEMORY_DB_PATH = "old.db"
+
+[mcp_servers.memory-mcp-server]
+command = "legacy-memory.exe"
+args = []
+
+[profiles.default]
+approval_policy = "never"
+"#,
+        )
+        .unwrap();
+
+        update_codex_config(&config_path, "C:\\tools\\opencode-memory.exe").unwrap();
+        let updated = std::fs::read_to_string(&config_path).unwrap();
+
+        assert!(updated.contains(r#"model = "gpt-5""#));
+        assert!(updated.contains("[mcp_servers.other]"));
+        assert!(updated.contains("[profiles.default]"));
+        assert!(!updated.contains("old-memory.exe"));
+        assert!(!updated.contains("[mcp_servers.opencode-memory.env]"));
+        assert!(!updated.contains("old.db"));
+        assert!(!updated.contains("[mcp_servers.memory-mcp-server]"));
+        assert!(updated.contains("[mcp_servers.opencode-memory]"));
+        assert!(updated.contains(r#"command = "C:/tools/opencode-memory.exe""#));
+        assert!(updated.contains("args = []"));
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn update_codex_config_creates_parent_directory() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "opencode-memory-codex-create-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&temp_dir);
+        let config_path = temp_dir.join(".codex").join("config.toml");
+
+        update_codex_config(&config_path, "memory.exe").unwrap();
+        let updated = std::fs::read_to_string(&config_path).unwrap();
+
+        assert!(updated.contains("[mcp_servers.opencode-memory]"));
+        assert!(updated.contains(r#"command = "memory.exe""#));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
     }

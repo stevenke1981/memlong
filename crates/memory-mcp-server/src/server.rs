@@ -350,9 +350,7 @@ impl MemoryMcpServer {
         self.service
             .end_session(&input.session_id)
             .await
-            .map_err(|e| {
-                McpError::internal_error(format!("Failed to end session: {}", e), None)
-            })?;
+            .map_err(|e| McpError::internal_error(format!("Failed to end session: {}", e), None))?;
 
         let result = serde_json::json!({ "status": "success" });
         let text = serde_json::to_string_pretty(&result).map_err(|e| {

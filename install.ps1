@@ -63,8 +63,7 @@ if (-not $FromSource) {
     }
 
     if (-not $SourceExe) {
-        Write-Warning "Falling back to source compilation path."
-        $FromSource = $true
+        throw "Could not download release asset for $TagVersion. Re-run with -FromSource only on machines that have a Rust toolchain."
     }
 }
 
@@ -136,14 +135,34 @@ try {
 
 # Step 4: Configure OpenCode/Codex by running the installed binary
 Write-Host "Running configuration installer from $InstalledExe..."
-& $InstalledExe install
-if ($LASTEXITCODE -ne 0) {
-    throw "Installed binary failed to configure system settings (exit code $LASTEXITCODE)."
+$InstallOutput = & $InstalledExe install --json
+$InstallExitCode = $LASTEXITCODE
+if ($InstallExitCode -ne 0) {
+    throw "Installed binary failed to configure system settings (exit code $InstallExitCode): $InstallOutput"
+}
+
+try {
+    $InstallReport = $InstallOutput | Out-String | ConvertFrom-Json
+} catch {
+    throw "Installed binary did not return a valid JSON install report: $InstallOutput"
+}
+
+if (-not $InstallReport.binary_path) {
+    throw "Install report is missing binary_path."
+}
+
+$ReportedExe = (Resolve-Path -LiteralPath $InstallReport.binary_path).Path
+$ResolvedInstalledExe = (Resolve-Path -LiteralPath $InstalledExe).Path
+if ($ReportedExe -ne $ResolvedInstalledExe) {
+    throw "Install report binary path mismatch. Expected $ResolvedInstalledExe but got $ReportedExe."
 }
 
 Write-Host "=========================================================" -ForegroundColor Green
 Write-Host "$ServerName has been installed successfully!" -ForegroundColor Green
-Write-Host "Installed Executable Path: $InstalledExe" -ForegroundColor Green
+Write-Host "Installed Executable Path: $ReportedExe" -ForegroundColor Green
+foreach ($Client in $InstallReport.configured_clients) {
+    Write-Host "Configured $($Client.client): $($Client.path) [$($Client.status)]" -ForegroundColor Green
+}
 if (-not $IsStableCopied) {
     Write-Host "Note: Installed as a side-by-side versioned binary because the stable executable was in use." -ForegroundColor Yellow
 }
