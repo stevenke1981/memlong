@@ -145,13 +145,12 @@ if [[ "${INSTALL_EXIT_CODE}" -ne 0 ]]; then
     exit 1
 fi
 
-INSTALL_REPORT="$(echo "${INSTALL_OUTPUT}" | head -1)"
-if ! echo "${INSTALL_REPORT}" | python3 -c "import json,sys;json.load(sys.stdin)" 2>/dev/null; then
-    echo "Error: Installed binary did not return a valid JSON install report: ${INSTALL_REPORT}"
+if ! echo "${INSTALL_OUTPUT}" | python3 -c "import json,sys;json.load(sys.stdin)" 2>/dev/null; then
+    echo "Error: Installed binary did not return a valid JSON install report: ${INSTALL_OUTPUT}"
     exit 1
 fi
 
-REPORTED_EXE="$(echo "${INSTALL_REPORT}" | python3 -c "import json,sys;print(json.load(sys.stdin)['binary_path'])")"
+REPORTED_EXE="$(echo "${INSTALL_OUTPUT}" | python3 -c "import json,sys;print(json.load(sys.stdin)['binary_path'])")"
 RESOLVED_INSTALLED_EXE="$(realpath "${INSTALLED_EXE}")"
 if [[ "${REPORTED_EXE}" != "${RESOLVED_INSTALLED_EXE}" ]]; then
     echo "Error: Install report binary path mismatch. Expected ${RESOLVED_INSTALLED_EXE} but got ${REPORTED_EXE}."
@@ -161,13 +160,12 @@ fi
 echo "========================================================="
 echo "${SERVER_NAME} has been installed successfully!"
 echo "Installed Executable Path: ${REPORTED_EXE}"
-CONFIGURED_CLIENTS=$(echo "${INSTALL_REPORT}" | python3 -c "
+echo "${INSTALL_OUTPUT}" | python3 -c "
 import json,sys
 report=json.load(sys.stdin)
 for c in report['configured_clients']:
     print(f\"  {c['client']}: {c['path']} [{c['status']}]\")
-")
-echo "${CONFIGURED_CLIENTS}"
+"
 if ! $IS_STABLE_COPIED; then
     echo "Note: Installed as a side-by-side versioned binary because the stable executable was in use."
 fi
