@@ -67,6 +67,22 @@ impl SqliteStore {
         Ok(memory)
     }
 
+    pub async fn get_memories_by_vector_ids(&self, vector_ids: &[i64]) -> Result<Vec<Memory>> {
+        if vector_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut query_builder = sqlx::QueryBuilder::new("SELECT * FROM memories WHERE vector_id IN (");
+        let mut separated = query_builder.separated(", ");
+        for vid in vector_ids {
+            separated.push_bind(vid);
+        }
+        separated.push_unseparated(") ");
+
+        let memories = query_builder.build_query_as::<Memory>().fetch_all(&self.pool).await?;
+        Ok(memories)
+    }
+
     pub async fn get_by_ids(&self, ids: &[String]) -> Result<Vec<Memory>> {
         if ids.is_empty() {
             return Ok(Vec::new());
@@ -96,7 +112,11 @@ impl SqliteStore {
     }
 
     pub async fn unlink_memory_from_entities(&self, memory_id: &str) -> Result<()> {
-        let entities: Vec<EntityRecord> = sqlx::query_as("SELECT * FROM entities")
+        let pattern = format!("%{}%", memory_id);
+        let entities: Vec<EntityRecord> = sqlx::query_as(
+            "SELECT * FROM entities WHERE memory_ids LIKE ?"
+        )
+            .bind(&pattern)
             .fetch_all(&self.pool)
             .await?;
 

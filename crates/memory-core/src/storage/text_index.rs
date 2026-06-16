@@ -61,7 +61,7 @@ impl TextIndex {
         category: &str,
         entities: &str,
     ) -> Result<()> {
-        let mut writer_guard = self.writer.lock().map_err(|e| {
+        let writer_guard = self.writer.lock().map_err(|e| {
             MemoryError::Other(format!("Failed to acquire text index lock: {:?}", e))
         })?;
 
@@ -73,7 +73,17 @@ impl TextIndex {
         );
 
         writer_guard.add_document(doc)?;
+        Ok(())
+    }
+
+    /// Flush pending document additions to disk and reload the reader.
+    /// Should be called after a batch of add_document calls.
+    pub fn flush(&self) -> Result<()> {
+        let mut writer_guard = self.writer.lock().map_err(|e| {
+            MemoryError::Other(format!("Failed to acquire text index lock: {:?}", e))
+        })?;
         writer_guard.commit()?;
+        drop(writer_guard);
         self.reader.reload()?;
         Ok(())
     }

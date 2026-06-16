@@ -59,15 +59,7 @@ impl RetrievalEngine {
         // Retrieve memory IDs for semantic results by searching SQLite for matching vector_ids
         let sem_vector_ids: Vec<i64> = sem_results.iter().map(|(vid, _)| *vid).collect();
         let sem_memories = if !sem_vector_ids.is_empty() {
-            let mut ids = Vec::new();
-            for vid in sem_vector_ids {
-                // Look up by vector ID
-                let mem_opt = self.sqlite.get_memory_by_vector_id(vid).await?;
-                if let Some(m) = mem_opt {
-                    ids.push(m);
-                }
-            }
-            ids
+            self.sqlite.get_memories_by_vector_ids(&sem_vector_ids).await?
         } else {
             Vec::new()
         };

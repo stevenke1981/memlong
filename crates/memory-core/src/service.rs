@@ -181,6 +181,11 @@ impl MemoryService {
             }
         }
 
+        // Flush text index batch
+        if let Err(e) = self.text_index.flush() {
+            tracing::warn!("Failed to flush text index: {e}");
+        }
+
         // Update session stats
         let _ = self
             .sqlite

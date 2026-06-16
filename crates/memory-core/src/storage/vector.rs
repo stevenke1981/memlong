@@ -102,51 +102,59 @@ impl VectorStore {
         self.index.size()
     }
 
+    const COMPACT_CHUNK_SIZE: usize = 10_000;
+
     /// Compact the index by rebuilding from scratch with only the given valid keys.
-    /// This eliminates stale HNSW graph edges from removed/replaced entries.
+    /// Uses a temporary file to snapshot the pre-compact state, then reads vectors
+    /// in chunks and re-adds them — avoiding OOM on large indexes.
     pub fn compact(&self, valid_keys: &[u64]) -> Result<()> {
         if valid_keys.is_empty() {
             return Ok(());
         }
 
         let dim = self.dimensions;
-        let mut buffer = vec![0.0f32; dim];
 
-        // Collect valid (key, vector) pairs from the current index
-        let mut pairs: Vec<(u64, Vec<f32>)> = Vec::with_capacity(valid_keys.len());
-        for &key in valid_keys {
-            if !self.index.contains(key) {
-                continue;
-            }
-            buffer.fill(0.0);
-            match self.index.get::<f32>(key, &mut buffer) {
-                Ok(_) => {
+        // 1. Snapshot current state to a temp file
+        let temp_path = format!("{}.compact.tmp", self.path);
+        map_usearch(self.index.save(&temp_path))?;
+
+        // 2. Open a read-only snapshot index
+        let snapshot = map_usearch(Index::restore(&temp_path))?;
+
+        // 3. Reset the live index
+        map_usearch(self.index.reset())?;
+        map_usearch(self.index.reserve(valid_keys.len().next_power_of_two()))?;
+
+        // 4. Read from snapshot and re-add in chunks
+        let mut buffer = vec![0.0f32; dim];
+        let mut added = 0usize;
+
+        for chunk in valid_keys.chunks(Self::COMPACT_CHUNK_SIZE) {
+            let mut pairs: Vec<(u64, Vec<f32>)> = Vec::with_capacity(chunk.len());
+            for &key in chunk {
+                if !snapshot.contains(key) {
+                    continue;
+                }
+                buffer.fill(0.0);
+                if snapshot.get::<f32>(key, &mut buffer).is_ok() {
                     pairs.push((key, buffer.clone()));
                 }
-                Err(e) => {
-                    tracing::warn!("VectorStore compact: failed to get key {key}: {e}");
-                }
             }
+            for (key, vector) in &pairs {
+                map_usearch(self.index.add(*key, vector))?;
+            }
+            added += pairs.len();
         }
 
-        if pairs.is_empty() {
-            return Ok(());
-        }
-
-        // Reset the index and re-add valid entries
-        map_usearch(self.index.reset())?;
-        map_usearch(self.index.reserve(pairs.len().next_power_of_two()))?;
-
-        for (key, vector) in &pairs {
-            map_usearch(self.index.add(*key, vector))?;
-        }
+        // 5. Clean up temp file
+        let _ = std::fs::remove_file(&temp_path);
 
         self.persist()?;
 
         tracing::info!(
-            "VectorStore compact: reduced from {} keys to {} entries",
+            "VectorStore compact: reduced from {} valid keys to {} entries",
             valid_keys.len(),
-            self.index.size()
+            added
         );
 
         Ok(())
