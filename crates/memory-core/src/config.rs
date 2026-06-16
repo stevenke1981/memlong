@@ -45,7 +45,7 @@ impl MemoryConfig {
             .unwrap_or_else(|_| base_dir.join("tantivy").to_string_lossy().into_owned());
 
         let llm_api_base =
-            env::var("LLM_API_BASE").unwrap_or_else(|_| "https://api.anthropic.com/v1".to_string());
+            env::var("LLM_API_BASE").unwrap_or_else(|_| "http://localhost:8080/v1".to_string());
 
         let llm_api_key = env::var("LLM_API_KEY").unwrap_or_else(|_| "local".to_string());
 

@@ -2,6 +2,7 @@ use memory_core::{config::MemoryConfig, service::MemoryService};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::signal;
 use tracing_subscriber::fmt::format::FmtSpan;
 
 mod server;
@@ -61,14 +62,37 @@ async fn main() -> anyhow::Result<()> {
         service.consolidation_engine(),
         std::time::Duration::from_secs(24 * 60 * 60),
     );
-    tokio::spawn(async move {
+    let scheduler_handle = tokio::spawn(async move {
         scheduler.run().await;
     });
     tracing::info!("Decay scheduler spawned (24h interval)");
 
-    // Launch custom MCP server on stdio using rmcp
+    // Keep a clone for the shutdown handler
+    let shutdown_service = service.clone();
+
+    // Launch MCP server with graceful shutdown
     let server = server::MemoryMcpServer::new(service);
-    server.serve_stdio().await?;
+
+    tokio::select! {
+        result = server.serve_stdio() => {
+            if let Err(e) = result {
+                tracing::error!("MCP server error: {e}");
+            }
+        }
+        _ = signal::ctrl_c() => {
+            tracing::info!("Received SIGINT, starting graceful shutdown...");
+        }
+    }
+
+    // Cancel background scheduler
+    scheduler_handle.abort();
+
+    // Run final consolidation before exit
+    tracing::info!("Running final batch consolidation...");
+    if let Err(e) = shutdown_service.consolidate_memories(None, None).await {
+        tracing::error!("Final consolidation failed: {e}");
+    }
+    tracing::info!("Memory server shut down gracefully");
 
     Ok(())
 }

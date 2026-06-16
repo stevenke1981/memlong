@@ -76,7 +76,7 @@ impl LlmClient {
         max_tokens: u32,
         temperature: f32,
     ) -> Result<String> {
-        if self.api_key == "mock" || self.api_key == "local" && self.api_base == "mock" {
+        if self.api_key == "mock" || (self.api_key == "local" && self.api_base == "mock") {
             // Mock response for testing
             return Ok(r#"
             {
@@ -150,7 +150,7 @@ impl LlmClient {
     }
 
     pub async fn embed(&self, text: &str, model: &str) -> Result<Vec<f32>> {
-        if self.api_key == "mock" || self.api_key == "local" && self.api_base == "mock" {
+        if self.api_key == "mock" || (self.api_key == "local" && self.api_base == "mock") {
             // Return dummy vector of dimension 1536 (default)
             return Ok(vec![0.1; 1536]);
         }
