@@ -76,7 +76,7 @@ impl MemoryService {
             llm_client.clone(),
             &config.embedding_model,
             default_weights,
-            config.decay_mu,
+            config.temporal_mu,
         ));
 
         // Persist actual embedding metadata into system_config

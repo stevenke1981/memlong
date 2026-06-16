@@ -24,7 +24,7 @@ fn test_config(tmp: &tempfile::TempDir) -> MemoryConfig {
         near_dedup_threshold: 0.75,
         top_k: 5,
         decay_lambda: 0.001,
-        decay_mu: 0.05,
+        temporal_mu: 0.05,
         max_records: 1000,
         min_confidence: 0.60,
         min_importance: 2,

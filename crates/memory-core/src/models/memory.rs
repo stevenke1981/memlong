@@ -58,6 +58,27 @@ pub struct Memory {
     pub metadata: String,
 }
 
+impl Memory {
+    /// Check if this memory has been archived (retention_factor < 0.1).
+    pub fn is_archived(&self) -> bool {
+        if self.retention_factor < 0.1 {
+            return true;
+        }
+        serde_json::from_str::<serde_json::Value>(&self.metadata)
+            .ok()
+            .and_then(|v| v.get("archived").and_then(|v| v.as_bool()))
+            .unwrap_or(false)
+    }
+
+    /// Extract the original LLM importance score from metadata.
+    pub fn llm_importance(&self) -> f64 {
+        serde_json::from_str::<serde_json::Value>(&self.metadata)
+            .ok()
+            .and_then(|v| v.get("llm_importance").and_then(|v| v.as_f64()))
+            .unwrap_or(2.5)
+    }
+}
+
 /// 記憶類別
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum MemoryCategory {

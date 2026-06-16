@@ -187,14 +187,7 @@ impl ConsolidationEngine {
             .collect();
 
         for mut mem in memories {
-            // Check if already archived
-            let mut meta: serde_json::Map<String, serde_json::Value> =
-                serde_json::from_str(&mem.metadata).unwrap_or_default();
-            if meta
-                .get("archived")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-            {
+            if mem.is_archived() {
                 continue;
             }
 
@@ -213,11 +206,7 @@ impl ConsolidationEngine {
             mem.retention_factor = retention;
 
             // Update importance score
-            let llm_importance = meta
-                .get("llm_importance")
-                .and_then(|v| v.as_f64())
-                .unwrap_or(2.5)
-                / 5.0;
+            let llm_importance = mem.llm_importance() / 5.0;
             let access_score = (mem.access_count as f64 / 10.0).min(1.0);
             let recency_score = (-self.decay_lambda * elapsed_days).exp();
             let new_importance =
@@ -226,6 +215,8 @@ impl ConsolidationEngine {
 
             if retention < 0.1 {
                 // Archive the memory
+                let mut meta: serde_json::Map<String, serde_json::Value> =
+                    serde_json::from_str(&mem.metadata).unwrap_or_default();
                 meta.insert("archived".to_string(), true.into());
                 mem.metadata = serde_json::to_string(&meta)?;
             }

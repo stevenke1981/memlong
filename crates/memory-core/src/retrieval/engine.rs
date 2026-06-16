@@ -12,7 +12,7 @@ pub struct RetrievalEngine {
     llm_client: Arc<LlmClient>,
     embedding_model: String,
     default_weights: HybridWeights,
-    decay_mu: f64,
+        temporal_mu: f64,
 }
 
 impl RetrievalEngine {
@@ -23,7 +23,7 @@ impl RetrievalEngine {
         llm_client: Arc<LlmClient>,
         embedding_model: &str,
         default_weights: HybridWeights,
-        decay_mu: f64,
+    temporal_mu: f64,
     ) -> Self {
         Self {
             semantic: SemanticRetriever::new(vector_store),
@@ -32,7 +32,7 @@ impl RetrievalEngine {
             llm_client,
             embedding_model: embedding_model.to_string(),
             default_weights,
-            decay_mu,
+            temporal_mu,
         }
     }
 
@@ -100,7 +100,7 @@ impl RetrievalEngine {
             // Temporal score
             let elapsed_ms = now_ms - mem.last_accessed_at;
             let elapsed_days = elapsed_ms as f64 / 86_400_000.0;
-            let s_temp = (-self.decay_mu * elapsed_days).exp();
+            let s_temp = (-self.temporal_mu * elapsed_days).exp();
 
             // Weighted combination
             let score_final =
@@ -183,18 +183,8 @@ impl RetrievalEngine {
         }
 
         // Decayed filter
-        if !query.include_decayed {
-            if mem.retention_factor < 0.1 {
-                return false;
-            }
-            let meta: serde_json::Value = serde_json::from_str(&mem.metadata).unwrap_or_default();
-            if meta
-                .get("archived")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-            {
-                return false;
-            }
+        if !query.include_decayed && mem.is_archived() {
+            return false;
         }
 
         true

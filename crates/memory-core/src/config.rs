@@ -17,7 +17,7 @@ pub struct MemoryConfig {
     pub near_dedup_threshold: f64,
     pub top_k: usize,
     pub decay_lambda: f64,
-    pub decay_mu: f64,
+    pub temporal_mu: f64,
     pub max_records: usize,
     pub min_confidence: f64,
     pub min_importance: u8,
@@ -85,7 +85,7 @@ impl MemoryConfig {
             .and_then(|val| val.parse().ok())
             .unwrap_or(0.001);
 
-        let decay_mu = env::var("MEMORY_DECAY_MU")
+        let temporal_mu = env::var("MEMORY_TEMPORAL_MU")
             .ok()
             .and_then(|val| val.parse().ok())
             .unwrap_or(0.05);
@@ -119,7 +119,7 @@ impl MemoryConfig {
             near_dedup_threshold,
             top_k,
             decay_lambda,
-            decay_mu,
+            temporal_mu,
             max_records,
             min_confidence,
             min_importance,

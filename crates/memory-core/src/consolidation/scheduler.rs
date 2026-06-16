@@ -1,6 +1,6 @@
 use crate::consolidation::ConsolidationEngine;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::{error, info};
 
 /// Background decay scheduler that runs Ebbinghaus decay on a timer.
@@ -15,8 +15,24 @@ impl DecayScheduler {
         Self { engine, interval }
     }
 
+    /// Compute a simple jitter offset (0 to max_secs seconds) from the host identity.
+    fn startup_jitter(max_secs: u64) -> Duration {
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let offset = (seed % (max_secs as u128 * 1_000_000_000)) as u64 / 1_000_000;
+        Duration::from_millis(offset)
+    }
+
     /// Start the background decay loop. This never returns (runs forever).
+    /// The first run is delayed by a jitter based on host time to avoid
+    /// multiple replicas stampeding the database simultaneously.
     pub async fn run(self) {
+        let jitter = Self::startup_jitter(3600);
+        info!("DecayScheduler: initial sleep with {jitter:?} jitter");
+        tokio::time::sleep(jitter).await;
+
         loop {
             tokio::time::sleep(self.interval).await;
 
