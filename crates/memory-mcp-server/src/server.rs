@@ -1,7 +1,8 @@
 use memory_core::{
-    models::{HybridWeights, MemoryCategory, MemoryScope, SearchQuery},
+    models::{HybridWeights, MemoryScope, SearchQuery},
     service::MemoryService,
 };
+use std::str::FromStr;
 use rmcp::{
     model::{CallToolResult, Content, ServerInfo},
     tool, Error as McpError, ServerHandler,
@@ -125,8 +126,8 @@ impl MemoryMcpServer {
         #[tool(aggr)] input: AddMemoryInput,
     ) -> Result<CallToolResult, McpError> {
         let scope_raw = input.scope.as_deref().unwrap_or("Global");
-        let scope = MemoryScope::from_str(scope_raw).ok_or_else(|| {
-            McpError::invalid_params(format!("Invalid scope: {}", scope_raw), None)
+        let scope = MemoryScope::from_str(scope_raw).map_err(|e| {
+            McpError::invalid_params(format!("Invalid scope: {e}"), None)
         })?;
 
         // Validate scope requirements
@@ -139,13 +140,11 @@ impl MemoryMcpServer {
                     ));
                 }
             }
-            MemoryScope::Agent => {
-                if input.agent_id.is_none() {
-                    return Err(McpError::invalid_params(
-                        "agent_id is required when scope=Agent",
-                        None,
-                    ));
-                }
+            MemoryScope::Agent if input.agent_id.is_none() => {
+                return Err(McpError::invalid_params(
+                    "agent_id is required when scope=Agent",
+                    None,
+                ));
             }
             _ => {}
         }
@@ -184,14 +183,15 @@ impl MemoryMcpServer {
             .scope
             .as_deref()
             .map(|s| {
-                MemoryScope::from_str(s)
-                    .ok_or_else(|| McpError::invalid_params(format!("Invalid scope: {}", s), None))
+                MemoryScope::from_str(s).map_err(|e| {
+                    McpError::invalid_params(format!("Invalid scope: {e}"), None)
+                })
             })
             .transpose()?;
 
         let categories = input.categories.map(|arr| {
             arr.iter()
-                .filter_map(|val| MemoryCategory::from_str(val))
+                .filter_map(|val| val.parse::<memory_core::models::MemoryCategory>().ok())
                 .collect::<Vec<_>>()
         });
 
@@ -246,8 +246,9 @@ impl MemoryMcpServer {
             .scope
             .as_deref()
             .map(|s| {
-                MemoryScope::from_str(s)
-                    .ok_or_else(|| McpError::invalid_params(format!("Invalid scope: {}", s), None))
+                MemoryScope::from_str(s).map_err(|e| {
+                    McpError::invalid_params(format!("Invalid scope: {e}"), None)
+                })
             })
             .transpose()?;
 
@@ -298,9 +299,9 @@ impl MemoryMcpServer {
         let scope = input
             .scope
             .as_deref()
-            .map(|scope| {
-                MemoryScope::from_str(scope).ok_or_else(|| {
-                    McpError::invalid_params(format!("Invalid scope: {scope}"), None)
+            .map(|s| {
+                MemoryScope::from_str(s).map_err(|e| {
+                    McpError::invalid_params(format!("Invalid scope: {e}"), None)
                 })
             })
             .transpose()?;

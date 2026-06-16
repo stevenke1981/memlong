@@ -34,13 +34,13 @@ impl DecayScheduler {
         tokio::time::sleep(jitter).await;
 
         loop {
-            tokio::time::sleep(self.interval).await;
-
             info!("DecayScheduler: starting batch consolidation");
             match self.engine.batch_consolidate(None, None).await {
                 Ok(_) => info!("DecayScheduler: batch consolidation completed"),
                 Err(e) => error!("DecayScheduler: batch consolidation failed: {e}"),
             }
+
+            tokio::time::sleep(self.interval).await;
         }
     }
 }

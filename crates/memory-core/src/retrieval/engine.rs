@@ -36,6 +36,7 @@ impl RetrievalEngine {
         }
     }
 
+    #[tracing::instrument(skip(self), fields(query = %query.query, top_k = query.top_k))]
     pub async fn search(&self, query: &SearchQuery) -> Result<Vec<SearchResult>> {
         query.validate()?;
         let weights = query
@@ -44,14 +45,16 @@ impl RetrievalEngine {
             .unwrap_or_else(|| self.default_weights.clone());
         let fetch_k = query.top_k * 3;
 
-        // 1. Run Semantic and BM25 searches in parallel
-        let query_vec = self
-            .llm_client
-            .embed(&query.query, &self.embedding_model)
-            .await?;
+        // 1. Run embedding and BM25 search in parallel (they have no dependency)
+        let (embed_result, bm25_results) = tokio::join!(
+            self.llm_client.embed(&query.query, &self.embedding_model),
+            async { self.bm25.search_normalized(&query.query, fetch_k) },
+        );
+
+        let query_vec = embed_result?;
+        let bm25_results = bm25_results?;
 
         let sem_results = self.semantic.search(&query_vec, fetch_k)?;
-        let bm25_results = self.bm25.search_normalized(&query.query, fetch_k)?;
 
         // 2. Fetch all candidates from SQLite
         let mut candidate_ids = std::collections::HashSet::new();
@@ -122,6 +125,8 @@ impl RetrievalEngine {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
         scored.truncate(query.top_k);
+
+        tracing::debug!(count = scored.len(), "hybrid search completed");
 
         // 4. Update access statistics asynchronously for matched memories
         let hit_ids: Vec<String> = scored.iter().map(|r| r.memory.id.clone()).collect();

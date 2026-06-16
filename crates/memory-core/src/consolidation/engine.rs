@@ -37,6 +37,7 @@ impl ConsolidationEngine {
     }
 
     /// Consolidates a single extracted memory.
+    #[allow(clippy::too_many_arguments)]
     pub async fn consolidate_single(
         &self,
         ext: ExtractedMemory,
@@ -135,16 +136,10 @@ impl ConsolidationEngine {
             metadata: metadata_str,
         };
 
-        // Insert SQLite first
-        self.sqlite.insert_memory(&memory).await?;
+        // Write to vector store and text index FIRST (disposable — orphan entries cleaned up on compact).
+        // SQLite is written LAST as the authoritative source of truth.
+        self.vector_store.add(next_vector_id, &vector)?;
 
-        // Then add to vector store — on failure, rollback SQLite
-        if let Err(e) = self.vector_store.add(next_vector_id, &vector) {
-            let _ = self.sqlite.delete_memory(&memory.id).await;
-            return Err(e.into());
-        }
-
-        // Then add to text index — on failure, rollback vector + SQLite
         if let Err(e) = self.text_index.add_document(
             &memory.id,
             &memory.content,
@@ -152,97 +147,100 @@ impl ConsolidationEngine {
             &memory.entities,
         ) {
             let _ = self.vector_store.remove(next_vector_id);
-            let _ = self.sqlite.delete_memory(&memory.id).await;
-            return Err(e.into());
+            return Err(e);
         }
 
-        // Entity linking — on failure, rollback text index + vector + SQLite
+        // Entity linking — on failure rollback text index + vector
         if let Err(e) = link_entities(&self.sqlite, &memory.id, &ext.entities, now_ms).await {
             let _ = self.text_index.delete_document(&memory.id);
             let _ = self.vector_store.remove(next_vector_id);
-            let _ = self.sqlite.delete_memory(&memory.id).await;
-            return Err(e.into());
+            return Err(e);
         }
+
+        // SQLite last — authoritative source of truth
+        self.sqlite.insert_memory(&memory).await?;
 
         Ok(Some(memory))
     }
 
     /// Batch decay consolidation executed periodically (e.g. daily, or on session end).
+    /// Processes memories in pages of 1000 to avoid OOM on large stores.
     pub async fn batch_consolidate(
         &self,
         scope: Option<MemoryScope>,
         project_id: Option<&str>,
     ) -> Result<()> {
         let now_ms = chrono::Utc::now().timestamp_millis();
-        let memories = self
+        let scope_str = scope.as_ref().map(MemoryScope::as_str);
+        let project_id_str = project_id;
+
+        let total = self
             .sqlite
-            .get_memories_for_decay(scope.as_ref().map(MemoryScope::as_str), project_id)
+            .count_memories_for_decay(scope_str, project_id_str)
             .await?;
+        let page_size: i64 = 1000;
+        let mut all_vector_ids: Vec<u64> = Vec::new();
 
-        // Collect valid vector IDs before moving memories into the loop
-        let vector_ids: Vec<u64> = memories
-            .iter()
-            .map(|m| m.vector_id as u64)
-            .filter(|&id| id > 0)
-            .collect();
-
-        for mut mem in memories {
-            if mem.is_archived() {
-                continue;
-            }
-
-            // Calculate elapsed days
-            let elapsed_ms = now_ms - mem.last_accessed_at;
-            let elapsed_days = elapsed_ms as f64 / 86_400_000.0;
-
-            // Stability S = importance_score * 30 days. Reinforced by access_count.
-            let mut stability = initial_stability(mem.importance_score);
-            for _ in 0..mem.access_count {
-                stability = reinforce_stability(stability);
-            }
-
-            // Ebbinghaus decay
-            let retention = calculate_retention(stability, elapsed_days);
-            mem.retention_factor = retention;
-
-            // Update importance score
-            let llm_importance = mem.llm_importance() / 5.0;
-            let access_score = (mem.access_count as f64 / 10.0).min(1.0);
-            let recency_score = (-self.decay_lambda * elapsed_days).exp();
-            let new_importance =
-                (0.5 * llm_importance + 0.3 * access_score + 0.2 * recency_score).clamp(0.0, 1.0);
-            mem.importance_score = new_importance;
-
-            if retention < 0.1 {
-                // Archive the memory
-                let mut meta: serde_json::Map<String, serde_json::Value> =
-                    serde_json::from_str(&mem.metadata).unwrap_or_default();
-                meta.insert("archived".to_string(), true.into());
-                mem.metadata = serde_json::to_string(&meta)?;
-            }
-
-            mem.updated_at = now_ms;
-
-            // Save to SQLite
-            self.sqlite
-                .update_decay_parameters(
-                    &mem.id,
-                    mem.importance_score,
-                    mem.retention_factor,
-                    mem.updated_at,
-                    &mem.metadata,
-                )
+        for offset in (0..total).step_by(page_size as usize) {
+            let memories = self
+                .sqlite
+                .get_memories_for_decay_paginated(scope_str, project_id_str, offset, page_size)
                 .await?;
-            // Note: Since this is decay parameter update only, we don't modify memory content.
+
+            for mut mem in memories {
+                all_vector_ids.push(mem.vector_id as u64);
+
+                if mem.is_archived() {
+                    continue;
+                }
+
+                let elapsed_ms = now_ms - mem.last_accessed_at;
+                let elapsed_days = elapsed_ms as f64 / 86_400_000.0;
+
+                let mut stability = initial_stability(mem.importance_score);
+                for _ in 0..mem.access_count {
+                    stability = reinforce_stability(stability);
+                }
+
+                let retention = calculate_retention(stability, elapsed_days);
+                mem.retention_factor = retention;
+
+                let llm_importance = mem.llm_importance() / 5.0;
+                let access_score = (mem.access_count as f64 / 10.0).min(1.0);
+                let recency_score = (-self.decay_lambda * elapsed_days).exp();
+                let new_importance =
+                    (0.5 * llm_importance + 0.3 * access_score + 0.2 * recency_score)
+                        .clamp(0.0, 1.0);
+                mem.importance_score = new_importance;
+
+                if retention < 0.1 {
+                    let mut meta: serde_json::Map<String, serde_json::Value> =
+                        serde_json::from_str(&mem.metadata).unwrap_or_default();
+                    meta.insert("archived".to_string(), true.into());
+                    mem.metadata = serde_json::to_string(&meta)?;
+                }
+
+                mem.updated_at = now_ms;
+
+                self.sqlite
+                    .update_decay_parameters(
+                        &mem.id,
+                        mem.importance_score,
+                        mem.retention_factor,
+                        mem.updated_at,
+                        &mem.metadata,
+                    )
+                    .await?;
+            }
         }
 
-        // Compact Tantivy index after decay updates
-        if let Err(e) = self.text_index.compact() {
+        all_vector_ids.retain(|&id| id > 0);
+
+        if let Err(e) = self.text_index.compact().await {
             tracing::warn!("Failed to compact text index: {e}");
         }
 
-        // Compact USearch index with only valid entries
-        if let Err(e) = self.vector_store.compact(&vector_ids) {
+        if let Err(e) = self.vector_store.compact(&all_vector_ids) {
             tracing::warn!("Failed to compact vector index: {e}");
         }
 

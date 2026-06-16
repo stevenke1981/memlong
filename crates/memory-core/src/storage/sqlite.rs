@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 #[derive(Clone)]
 pub struct SqliteStore {
-    pub pool: SqlitePool,
+    pool: SqlitePool,
 }
 
 impl SqliteStore {
@@ -393,6 +393,55 @@ impl SqliteStore {
             .fetch_all(&self.pool)
             .await?;
         Ok(memories)
+    }
+
+    /// Paginated variant of get_memories_for_decay to avoid loading all memories into memory.
+    pub async fn get_memories_for_decay_paginated(
+        &self,
+        scope: Option<&str>,
+        project_id: Option<&str>,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<Memory>> {
+        let mut query_builder =
+            sqlx::QueryBuilder::new("SELECT * FROM memories WHERE 1=1");
+        if let Some(scope) = scope {
+            query_builder.push(" AND scope = ").push_bind(scope);
+        }
+        if let Some(project_id) = project_id {
+            query_builder
+                .push(" AND project_id = ")
+                .push_bind(project_id);
+        }
+        query_builder.push(" ORDER BY rowid LIMIT ").push_bind(limit).push(" OFFSET ").push_bind(offset);
+        let memories = query_builder
+            .build_query_as::<Memory>()
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(memories)
+    }
+
+    /// Count memories matching decay scope/project filters.
+    pub async fn count_memories_for_decay(
+        &self,
+        scope: Option<&str>,
+        project_id: Option<&str>,
+    ) -> Result<i64> {
+        let mut query_builder =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM memories WHERE 1=1");
+        if let Some(scope) = scope {
+            query_builder.push(" AND scope = ").push_bind(scope);
+        }
+        if let Some(project_id) = project_id {
+            query_builder
+                .push(" AND project_id = ")
+                .push_bind(project_id);
+        }
+        let count: i64 = query_builder
+            .build_query_scalar()
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(count)
     }
 }
 

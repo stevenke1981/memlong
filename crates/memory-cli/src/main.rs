@@ -83,8 +83,8 @@ async fn main() -> anyhow::Result<()> {
             scope,
             project_id,
         } => {
-            let memory_scope = MemoryScope::from_str(&scope)
-                .ok_or_else(|| anyhow::anyhow!("Invalid scope: {}", scope))?;
+            let memory_scope = scope.parse::<MemoryScope>()
+                .map_err(|e| anyhow::anyhow!("Invalid scope: {e}"))?;
 
             println!("Extracting and consolidating memory...");
             let memories = service
@@ -113,7 +113,7 @@ async fn main() -> anyhow::Result<()> {
             scope,
             project_id,
         } => {
-            let memory_scope = scope.and_then(|s| MemoryScope::from_str(&s));
+            let memory_scope = scope.and_then(|s| s.parse::<MemoryScope>().ok());
 
             let search_query = SearchQuery {
                 query,
@@ -150,7 +150,7 @@ async fn main() -> anyhow::Result<()> {
             project_id,
             limit,
         } => {
-            let memory_scope = scope.and_then(|s| MemoryScope::from_str(&s));
+            let memory_scope = scope.and_then(|s| s.parse::<MemoryScope>().ok());
 
             let memories = service
                 .get_memories(None, memory_scope, project_id, limit)

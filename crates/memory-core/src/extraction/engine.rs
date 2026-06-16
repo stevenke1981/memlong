@@ -33,6 +33,7 @@ pub struct ExtractionEngine {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ExtractionResponse {
     pub memories: Vec<ExtractedMemory>,
 }

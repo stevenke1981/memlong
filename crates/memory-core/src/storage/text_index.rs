@@ -103,7 +103,7 @@ impl TextIndex {
     /// Compact the Tantivy index by merging segments into a single segment.
     /// This improves search performance and reduces disk usage.
     /// Should be called periodically (e.g., during batch consolidation).
-    pub fn compact(&self) -> Result<()> {
+    pub async fn compact(&self) -> Result<()> {
         let segment_ids: Vec<SegmentId> = self
             .index
             .searchable_segments()?
@@ -111,19 +111,14 @@ impl TextIndex {
             .map(|s| s.id())
             .collect();
         if segment_ids.len() > 1 {
-            // Create merge future, drop the lock, then block on the merge.
             let merge_future = {
                 let mut writer_guard = self.writer.lock().map_err(|e| {
                     MemoryError::Other(format!("Failed to acquire text index lock: {:?}", e))
                 })?;
-                // merge() returns FutureResult<Option<SegmentMeta>> directly (not wrapped in Result)
                 writer_guard.merge(&segment_ids)
             };
-            // Lock is dropped here; merge runs asynchronously.
-            // FutureResult<Option<SegmentMeta>> implements Future<Output = Option<SegmentMeta>>
-            let _ = tokio::runtime::Handle::current().block_on(merge_future);
+            let _ = merge_future.await;
 
-            // Re-acquire lock to commit
             let mut writer_guard = self.writer.lock().map_err(|e| {
                 MemoryError::Other(format!("Failed to acquire text index lock: {:?}", e))
             })?;

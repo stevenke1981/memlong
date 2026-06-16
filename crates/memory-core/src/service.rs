@@ -104,6 +104,7 @@ impl MemoryService {
     /// fails, a warning is logged and the call returns an empty result instead of
     /// propagating the error. This ensures the session is not interrupted by transient
     /// API failures or malformed extraction responses.
+    #[tracing::instrument(skip(self, content, metadata), fields(content_len = %content.len(), scope = ?scope))]
     pub async fn add_memory(
         &self,
         content: &str,
@@ -247,6 +248,7 @@ impl MemoryService {
     }
 
     /// Consolidate memories (decay calculations)
+    #[tracing::instrument(skip(self))]
     pub async fn consolidate_memories(
         &self,
         scope: Option<MemoryScope>,

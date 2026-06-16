@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::str::FromStr;
 
 /// 記憶單元 — 系統核心資料結構
 /// ADD-only: 建立後 content 不可修改，只更新存取統計與 decay 參數
@@ -81,6 +83,7 @@ impl Memory {
 
 /// 記憶類別
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MemoryCategory {
     Fact,             // 一般事實知識
     Preference,       // 使用者偏好與習慣
@@ -103,24 +106,34 @@ impl MemoryCategory {
             Self::Workflow => "Workflow",
         }
     }
+}
 
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str(s: &str) -> Option<Self> {
+impl fmt::Display for MemoryCategory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for MemoryCategory {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "Fact" => Some(Self::Fact),
-            "Preference" => Some(Self::Preference),
-            "Decision" => Some(Self::Decision),
-            "ProjectKnowledge" => Some(Self::ProjectKnowledge),
-            "CodePattern" => Some(Self::CodePattern),
-            "ErrorLesson" => Some(Self::ErrorLesson),
-            "Workflow" => Some(Self::Workflow),
-            _ => None,
+            "Fact" => Ok(Self::Fact),
+            "Preference" => Ok(Self::Preference),
+            "Decision" => Ok(Self::Decision),
+            "ProjectKnowledge" => Ok(Self::ProjectKnowledge),
+            "CodePattern" => Ok(Self::CodePattern),
+            "ErrorLesson" => Ok(Self::ErrorLesson),
+            "Workflow" => Ok(Self::Workflow),
+            _ => Err(format!("Unknown MemoryCategory: {s}")),
         }
     }
 }
 
 /// 記憶作用域
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MemoryScope {
     Global,  // 跨所有專案共用
     Project, // 特定專案隔離
@@ -137,15 +150,24 @@ impl MemoryScope {
             Self::Agent => "Agent",
         }
     }
+}
 
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str(s: &str) -> Option<Self> {
+impl fmt::Display for MemoryScope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for MemoryScope {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "Global" => Some(Self::Global),
-            "Project" => Some(Self::Project),
-            "Session" => Some(Self::Session),
-            "Agent" => Some(Self::Agent),
-            _ => None,
+            "Global" => Ok(Self::Global),
+            "Project" => Ok(Self::Project),
+            "Session" => Ok(Self::Session),
+            "Agent" => Ok(Self::Agent),
+            _ => Err(format!("Unknown MemoryScope: {s}")),
         }
     }
 }
