@@ -17,7 +17,7 @@ pub struct ExtractionConfig {
 impl Default for ExtractionConfig {
     fn default() -> Self {
         Self {
-            model: "claude-sonnet-4-6".to_string(),
+            model: "llama-3-8b".to_string(),
             max_tokens: 2048,
             temperature: 0.1,
             min_confidence: 0.60,

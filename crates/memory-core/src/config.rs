@@ -58,7 +58,7 @@ impl MemoryConfig {
             .unwrap_or(1536);
 
         let extraction_model =
-            env::var("EXTRACTION_MODEL").unwrap_or_else(|_| "claude-sonnet-4-6".to_string());
+            env::var("EXTRACTION_MODEL").unwrap_or_else(|_| "llama-3-8b".to_string());
 
         let extraction_max_tokens = env::var("EXTRACTION_MAX_TOKENS")
             .ok()

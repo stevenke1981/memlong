@@ -7,13 +7,12 @@ use crate::retrieval::RetrievalEngine;
 use crate::storage::{SqliteStore, TextIndex, VectorStore};
 use std::sync::Arc;
 
-#[allow(dead_code)]
 pub struct MemoryService {
     config: MemoryConfig,
     sqlite: Arc<SqliteStore>,
     vector_store: Arc<VectorStore>,
     text_index: Arc<TextIndex>,
-    llm_client: Arc<LlmClient>,
+    _llm_client: Arc<LlmClient>,
     extraction: Arc<ExtractionEngine>,
     consolidation: Arc<ConsolidationEngine>,
     retrieval: Arc<RetrievalEngine>,
@@ -92,7 +91,7 @@ impl MemoryService {
             sqlite,
             vector_store,
             text_index,
-            llm_client,
+            _llm_client: llm_client,
             extraction,
             consolidation,
             retrieval,
