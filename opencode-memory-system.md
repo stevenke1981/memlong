@@ -220,7 +220,7 @@ Plugin.onSessionEnd(context)
 
 | 任務 | 說明 |
 |------|------|
-| Cargo workspace 建立 | 三個 crate：memory-core / memory-mcp-server / memory-cli |
+| Cargo workspace 建立 | 三個 crate：agents-memory-core / agents-memory-servics / agents-memory-cli |
 | SQLite schema + migration | `sqlx migrate` V1__init.sql，WAL mode |
 | 基礎 Storage Layer | CRUD: insert/get/delete/list for memories + entities |
 | USearch 整合 | 初始化 HNSW index，insert/search vector operations |
@@ -282,7 +282,7 @@ opencode-memory/
 ├── Cargo.lock
 │
 ├── crates/
-│   ├── memory-core/                    # 核心庫 (lib crate)
+│   ├── agents-memory-core/                    # 核心庫 (lib crate)
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs                  # 公開 API 入口
@@ -323,7 +323,7 @@ opencode-memory/
 │   │           └── migrations/
 │   │               └── V1__init.sql
 │   │
-│   ├── memory-mcp-server/              # MCP Server (bin crate)
+│   ├── agents-memory-servics/              # MCP Server (bin crate)
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── main.rs                 # Entry, tokio::main
@@ -337,7 +337,7 @@ opencode-memory/
 │   │           ├── consolidate.rs
 │   │           └── get_stats.rs
 │   │
-│   └── memory-cli/                     # Debug CLI (bin crate)
+│   └── agents-memory-cli/                     # Debug CLI (bin crate)
 │       ├── Cargo.toml
 │       └── src/
 │           └── main.rs                 # clap commands: add/search/list/stats
@@ -368,7 +368,7 @@ opencode-memory/
 #### 2.1 Memory（核心實體）
 
 ```rust
-// crates/memory-core/src/models/memory.rs
+// crates/agents-memory-core/src/models/memory.rs
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -470,7 +470,7 @@ pub enum MemoryScope {
 #### 2.2 SearchQuery & HybridWeights
 
 ```rust
-// crates/memory-core/src/models/query.rs
+// crates/agents-memory-core/src/models/query.rs
 
 use serde::{Deserialize, Serialize};
 use crate::models::memory::{MemoryCategory, MemoryScope};
@@ -552,7 +552,7 @@ pub struct SearchResult {
 #### 2.3 ExtractionResult（LLM 輸出契約）
 
 ```rust
-// crates/memory-core/src/extraction/engine.rs
+// crates/agents-memory-core/src/extraction/engine.rs
 
 /// LLM Single-Pass 提取結果（嚴格對應 LLM JSON 輸出格式）
 #[derive(Debug, Serialize, Deserialize)]
@@ -580,7 +580,7 @@ pub struct ExtractedMemory {
 ### 3. SQLite Schema（V1__init.sql）
 
 ```sql
--- crates/memory-core/src/storage/migrations/V1__init.sql
+-- crates/agents-memory-core/src/storage/migrations/V1__init.sql
 
 -- 高效能配置
 PRAGMA journal_mode = WAL;       -- Write-Ahead Logging: 允許並發讀
@@ -679,7 +679,7 @@ VALUES
 #### 4.1 Single-Pass Extraction Prompt（System）
 
 ```rust
-// crates/memory-core/src/extraction/prompt.rs
+// crates/agents-memory-core/src/extraction/prompt.rs
 
 /// Single-Pass Extraction System Prompt
 /// 設計原則：一次 LLM 呼叫提取所有記憶，嚴格 JSON 輸出
@@ -729,7 +729,7 @@ pub fn extraction_user_prompt(conversation: &str) -> String {
 #### 4.2 ExtractionEngine 實作骨架
 
 ```rust
-// crates/memory-core/src/extraction/engine.rs
+// crates/agents-memory-core/src/extraction/engine.rs
 
 pub struct ExtractionConfig {
     pub model: String,          // 預設: "claude-sonnet-4-6" 或 local model
@@ -868,7 +868,7 @@ $$R(t) = e^{-t \,/\, S}$$
 | 封存閾值 | `retention_factor < 0.1` → 標記 `metadata.archived = true` |
 
 ```rust
-// crates/memory-core/src/consolidation/decay.rs
+// crates/agents-memory-core/src/consolidation/decay.rs
 
 /// 計算 Ebbinghaus 衰減後的保留率
 pub fn calculate_retention(
@@ -920,7 +920,7 @@ $\Delta t$：查詢時刻距該記憶 `last_accessed_at` 的天數。
 #### 6.2 RetrievalEngine 實作骨架
 
 ```rust
-// crates/memory-core/src/retrieval/engine.rs
+// crates/agents-memory-core/src/retrieval/engine.rs
 
 pub struct RetrievalEngine {
     semantic: SemanticRetriever,   // USearch HNSW
@@ -1147,7 +1147,7 @@ impl RetrievalEngine {
 #### 7.3 MCP Server main.rs 骨架
 
 ```rust
-// crates/memory-mcp-server/src/main.rs
+// crates/agents-memory-servics/src/main.rs
 
 use memory_core::{config::MemoryConfig, service::MemoryService};
 use std::sync::Arc;
@@ -1327,7 +1327,7 @@ function formatMemoriesForInjection(memories: Memory[]): string {
     "opencode-memory": {
       "type": "local",
       "command": [
-        "${HOME}/.cargo/bin/memory-mcp-server"
+        "${HOME}/.cargo/bin/agents-memory-servics"
       ],
       "environment": {
         "MEMORY_DB_PATH": "${PROJECT_ROOT}/.opencode/memory.db",
@@ -1390,9 +1390,9 @@ function formatMemoriesForInjection(memories: Memory[]): string {
 [workspace]
 resolver = "2"
 members = [
-    "crates/memory-core",
-    "crates/memory-mcp-server",
-    "crates/memory-cli",
+    "crates/agents-memory-core",
+    "crates/agents-memory-servics",
+    "crates/agents-memory-cli",
 ]
 
 [workspace.package]
@@ -1448,11 +1448,11 @@ codegen-units = 1
 strip = true        # 移除 debug symbols，縮小二進制
 ```
 
-#### crates/memory-core/Cargo.toml
+#### crates/agents-memory-core/Cargo.toml
 
 ```toml
 [package]
-name = "memory-core"
+name = "agents-memory-core"
 version.workspace = true
 edition.workspace = true
 
@@ -1475,20 +1475,20 @@ tokio-test   = "0.4"
 tempfile     = "3"   # 測試用暫存 SQLite DB
 ```
 
-#### crates/memory-mcp-server/Cargo.toml
+#### crates/agents-memory-servics/Cargo.toml
 
 ```toml
 [package]
-name = "memory-mcp-server"
+name = "agents-memory-servics"
 version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "memory-mcp-server"
+name = "agents-memory-servics"
 path = "src/main.rs"
 
 [dependencies]
-memory-core         = { path = "../memory-core" }
+agents-memory-core         = { path = "../agents-memory-core" }
 rmcp                = { workspace = true }
 tokio               = { workspace = true }
 serde               = { workspace = true }
@@ -1646,7 +1646,7 @@ async fn test_hybrid_retrieval_ranking() {
 詳細規格見 `docs/spec.md`（本文件）。
 
 ## 執行優先順序
-Phase 1 (memory-core 基礎) → Phase 2 (MCP server) → Phase 3 (plugin) → Phase 4 (hybrid retrieval)
+Phase 1 (agents-memory-core 基礎) → Phase 2 (MCP server) → Phase 3 (plugin) → Phase 4 (hybrid retrieval)
 每個 Phase 完成後必須通過對應測試才能進入下一個。
 
 ## 🚫 禁止事項（CRITICAL）
@@ -1704,15 +1704,15 @@ cargo new --lib opencode-memory
 cd opencode-memory
 
 # 2. 初始化子 crates
-cargo new --lib crates/memory-core
-cargo new --bin crates/memory-mcp-server
-cargo new --bin crates/memory-cli
+cargo new --lib crates/agents-memory-core
+cargo new --bin crates/agents-memory-servics
+cargo new --bin crates/agents-memory-cli
 
 # 3. 建置
 cargo build --release
 
 # 4. 安裝 MCP Server 二進制
-cargo install --path crates/memory-mcp-server
+cargo install --path crates/agents-memory-servics
 
 # 5. 初始化 Plugin（TypeScript）
 cd plugin && npm install && npm run build
@@ -1726,11 +1726,11 @@ MEMORY_VECTOR_PATH=./test.usearch \
 MEMORY_TANTIVY_PATH=./test-tantivy \
 LLM_API_BASE=http://localhost:8080/v1 \
 LLM_API_KEY=local \
-./target/release/memory-mcp-server
+./target/release/agents-memory-servics
 
 # 8. CLI 測試
-./target/release/memory-cli search "Rust async preference"
-./target/release/memory-cli stats
+./target/release/agents-memory-cli search "Rust async preference"
+./target/release/agents-memory-cli stats
 ```
 
 ---
