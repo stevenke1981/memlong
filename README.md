@@ -1,4 +1,4 @@
-# Memlong
+# Agents Memory Service (AMS)
 
 <div align="right">
 
@@ -6,16 +6,16 @@
 
 </div>
 
-A local-first long-term memory system for coding agents. Durable facts, preferences, decisions, code patterns, and project knowledge across sessions. Hybrid semantic + BM25 + temporal retrieval.
+**Agents Memory Service (AMS)** — A local-first long-term memory system for AI coding agents. Durable facts, preferences, decisions, code patterns, and project knowledge across sessions. Hybrid semantic + BM25 + temporal retrieval.
 
-Core in Rust, exposed as an MCP server. Optional TypeScript shim for OpenCode lifecycle hooks.
+Core in Rust, exposed as an MCP server (`ams` binary). Optional TypeScript shim for OpenCode lifecycle hooks. Successor to the original `memlong` / `opencode-memory` project.
 
 ## Quick Start
 
 ```bash
 # Build
-git clone https://github.com/stevenke1981/memlong.git
-cd memlong
+git clone https://github.com/stevenke1981/agents-memory-services.git
+cd agents-memory-services
 cargo build --release
 
 # Install
@@ -29,17 +29,17 @@ export EMBEDDING_MODEL="your-embedding-model"
 export EMBEDDING_DIM="1536"
 
 # Verify
-./target/release/memory-mcp-server health
+./target/release/ams health
 ```
 
 ### CLI Debug
 
 ```bash
-cargo run -p memory-cli -- add --content "User prefers Rust for core services"
-cargo run -p memory-cli -- search --query "preferred implementation language"
-cargo run -p memory-cli -- list
-cargo run -p memory-cli -- stats
-cargo run -p memory-cli -- consolidate
+cargo run -p agents-memory-cli -- add --content "User prefers Rust for core services"
+cargo run -p agents-memory-cli -- search --query "preferred implementation language"
+cargo run -p agents-memory-cli -- list
+cargo run -p agents-memory-cli -- stats
+cargo run -p agents-memory-cli -- consolidate
 ```
 
 ## Configuration
@@ -78,7 +78,7 @@ cargo run -p memory-cli -- consolidate
 ### Contracts
 
 1. **ADD-only**: memory content is immutable. Only access stats, retention, importance, and archival metadata may be updated.
-2. **Rust core, TS thin**: memory logic in `memory-core`. TypeScript (`plugin/`) is a lifecycle adapter only.
+2. **Rust core, TS thin**: memory logic in `agents-memory-core`. TypeScript (`plugin/`) is a lifecycle adapter only.
 3. **Index consistency**: SQLite, USearch, Tantivy, and entity links must remain consistent through every insert and delete.
 4. **MCP protocol**: stdout reserved for JSON-RPC; diagnostics to stderr.
 5. **Scope isolation**: duplicate detection respects scope + project boundaries.
@@ -87,7 +87,7 @@ cargo run -p memory-cli -- consolidate
 ### Architecture
 
 ```
-MCP Client → memory-mcp-server → memory-core
+MCP Client → agents-memory-servics → agents-memory-core
                                     ├── SQLite (metadata, entities, stats)
                                     ├── USearch HNSW (vector index)
                                     ├── Tantivy BM25 (text index)
@@ -102,12 +102,12 @@ Default data location: `.opencode/`
 
 | Path | Responsibility |
 |------|---------------|
-| `crates/memory-core/src/service.rs` | High-level orchestration |
-| `crates/memory-core/src/extraction/` | LLM extraction and embeddings |
-| `crates/memory-core/src/consolidation/` | Dedup, entity linking, Ebbinghaus decay |
-| `crates/memory-core/src/retrieval/` | Hybrid ranking and filtering |
-| `crates/memory-core/src/storage/` | SQLite, USearch, Tantivy adapters |
-| `crates/memory-mcp-server/src/server.rs` | MCP tool schemas and handlers |
+| `crates/agents-memory-core/src/service.rs` | High-level orchestration |
+| `crates/agents-memory-core/src/extraction/` | LLM extraction and embeddings |
+| `crates/agents-memory-core/src/consolidation/` | Dedup, entity linking, Ebbinghaus decay |
+| `crates/agents-memory-core/src/retrieval/` | Hybrid ranking and filtering |
+| `crates/agents-memory-core/src/storage/` | SQLite, USearch, Tantivy adapters |
+| `crates/agents-memory-servics/src/server.rs` | MCP tool schemas and handlers |
 | `plugin/src/index.ts` | OpenCode lifecycle bridge |
 
 ### Verification
@@ -116,7 +116,7 @@ Default data location: `.opencode/`
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo build --release
-cargo bench -p memory-core
+cargo bench -p agents-memory-core
 cd plugin && npm ci && npm test
 ```
 
