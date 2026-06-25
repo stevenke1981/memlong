@@ -5,6 +5,7 @@ pub struct LlmClient {
     client: reqwest::Client,
     api_base: String,
     api_key: String,
+    embedding_dim: usize,
 }
 
 #[derive(Serialize)]
@@ -60,11 +61,12 @@ struct EmbeddingData {
 }
 
 impl LlmClient {
-    pub fn new(api_base: &str, api_key: &str) -> Self {
+    pub fn new(api_base: &str, api_key: &str, embedding_dim: usize) -> Self {
         Self {
             client: reqwest::Client::new(),
             api_base: api_base.trim_end_matches('/').to_string(),
             api_key: api_key.to_string(),
+            embedding_dim,
         }
     }
 
@@ -151,8 +153,8 @@ impl LlmClient {
 
     pub async fn embed(&self, text: &str, model: &str) -> Result<Vec<f32>> {
         if self.api_key == "mock" || self.api_key == "local" && self.api_base == "mock" {
-            // Return dummy vector of dimension 1536 (default)
-            return Ok(vec![0.1; 1536]);
+            // Return dummy vector of configured dimension
+            return Ok(vec![0.1; self.embedding_dim]);
         }
 
         let url = format!("{}/embeddings", self.api_base);
@@ -189,5 +191,32 @@ impl LlmClient {
             })?;
 
         Ok(vector)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn mock_embedding_respects_dimension() {
+        // 8-dim mock embedding
+        let client = LlmClient::new("mock", "mock", 8);
+        let vec = client.embed("test", "mock-model").await.unwrap();
+        assert_eq!(vec.len(), 8, "mock embed should return EMBEDDING_DIM=8");
+
+        // 1536-dim mock embedding
+        let client = LlmClient::new("mock", "mock", 1536);
+        let vec = client.embed("test", "mock-model").await.unwrap();
+        assert_eq!(
+            vec.len(),
+            1536,
+            "mock embed should return EMBEDDING_DIM=1536"
+        );
+
+        // 64-dim mock embedding
+        let client = LlmClient::new("mock", "mock", 64);
+        let vec = client.embed("test", "mock-model").await.unwrap();
+        assert_eq!(vec.len(), 64, "mock embed should return EMBEDDING_DIM=64");
     }
 }

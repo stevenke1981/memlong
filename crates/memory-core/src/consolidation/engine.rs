@@ -37,6 +37,7 @@ impl ConsolidationEngine {
     }
 
     /// Consolidates a single extracted memory.
+    #[allow(clippy::too_many_arguments)]
     pub async fn consolidate_single(
         &self,
         ext: ExtractedMemory,
@@ -141,7 +142,7 @@ impl ConsolidationEngine {
         // Then add to vector store — on failure, rollback SQLite
         if let Err(e) = self.vector_store.add(next_vector_id, &vector) {
             let _ = self.sqlite.delete_memory(&memory.id).await;
-            return Err(e.into());
+            return Err(e);
         }
 
         // Then add to text index — on failure, rollback vector + SQLite
@@ -153,7 +154,7 @@ impl ConsolidationEngine {
         ) {
             let _ = self.vector_store.remove(next_vector_id);
             let _ = self.sqlite.delete_memory(&memory.id).await;
-            return Err(e.into());
+            return Err(e);
         }
 
         // Entity linking — on failure, rollback text index + vector + SQLite
@@ -161,7 +162,7 @@ impl ConsolidationEngine {
             let _ = self.text_index.delete_document(&memory.id);
             let _ = self.vector_store.remove(next_vector_id);
             let _ = self.sqlite.delete_memory(&memory.id).await;
-            return Err(e.into());
+            return Err(e);
         }
 
         Ok(Some(memory))

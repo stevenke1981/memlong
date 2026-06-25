@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "memlong-memory": {
+      "command": "/absolute/path/to/memlong-memory",
+      "args": [],
+      "env": {
+        "PROJECT_ROOT": "/absolute/path/to/your/project",
+        "LLM_API_BASE": "http://localhost:8080/v1",
+        "LLM_API_KEY": "local",
+        "EXTRACTION_MODEL": "your-chat-model",
+        "EMBEDDING_MODEL": "your-embedding-model",
+        "EMBEDDING_DIM": "1536",
+        "MEMORY_LOG_LEVEL": "info"
+      },
+      "timeout": 120000
+    }
+  }
+}

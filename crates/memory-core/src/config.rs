@@ -2,6 +2,12 @@ use crate::error::Result;
 use std::env;
 use std::path::PathBuf;
 
+/// Returns true if `val` looks like an unexpanded template/placeholder variable
+/// (e.g. `${PROJECT_ROOT}`, `$PROJECT_ROOT`, `%PROJECT_ROOT%`).
+fn is_placeholder(val: &str) -> bool {
+    val.contains("${") || val.contains("$(") || val.starts_with('$')
+}
+
 #[derive(Debug, Clone)]
 pub struct MemoryConfig {
     pub db_path: String,
@@ -25,11 +31,14 @@ pub struct MemoryConfig {
 
 impl MemoryConfig {
     pub fn from_env() -> Result<Self> {
-        // Resolve .opencode directory locally or in absolute path
-        let base_dir = env::var("PROJECT_ROOT")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
-            .join(".opencode");
+        // Resolve .opencode directory locally or in absolute path.
+        // Sanitize PROJECT_ROOT: reject empty or unexpanded placeholder values.
+        let project_root_raw = env::var("PROJECT_ROOT").ok();
+        let base_dir = match project_root_raw {
+            Some(ref val) if !val.is_empty() && !is_placeholder(val) => PathBuf::from(val),
+            _ => env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        }
+        .join(".opencode");
 
         let db_path = env::var("MEMORY_DB_PATH")
             .unwrap_or_else(|_| base_dir.join("memory.db").to_string_lossy().into_owned());
@@ -124,5 +133,66 @@ impl MemoryConfig {
             min_confidence,
             min_importance,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_placeholder_rejects_unexpanded_variables() {
+        assert!(is_placeholder("${PROJECT_ROOT}"));
+        assert!(is_placeholder("$HOME"));
+        assert!(is_placeholder("$(pwd)"));
+        assert!(is_placeholder("${VAR}"));
+    }
+
+    #[test]
+    fn is_placeholder_accepts_normal_paths() {
+        assert!(!is_placeholder("/absolute/path/to/your/project"));
+        assert!(!is_placeholder("C:\\Users\\eda\\project"));
+        assert!(!is_placeholder("/tmp/test"));
+        assert!(!is_placeholder("D:\\memlong"));
+        assert!(!is_placeholder("relative/path"));
+    }
+
+    #[test]
+    fn is_placeholder_rejects_empty_or_placeholder_project_root() {
+        // Empty string
+        assert!(
+            !is_placeholder(""),
+            "empty is not caught by is_placeholder alone"
+        );
+        // Placeholder-style
+        assert!(is_placeholder("${PROJECT_ROOT}"));
+    }
+
+    #[test]
+    fn from_env_project_root_sanitization() {
+        // Run sequentially in a single test to avoid parallel env var races.
+        let old = env::var("PROJECT_ROOT").ok();
+
+        // 1. Placeholder value → fallback, no literal placeholder in paths
+        env::set_var("PROJECT_ROOT", "${PROJECT_ROOT}");
+        let config = MemoryConfig::from_env().expect("from_env should fall back gracefully");
+        assert!(!config.db_path.contains("${PROJECT_ROOT}"));
+        assert!(!config.vector_path.contains("${PROJECT_ROOT}"));
+
+        // 2. Empty string → fallback
+        env::set_var("PROJECT_ROOT", "");
+        let config = MemoryConfig::from_env().expect("from_env should handle empty PROJECT_ROOT");
+        assert!(!config.db_path.contains("${PROJECT_ROOT}"));
+
+        // 3. Valid absolute path → used
+        env::set_var("PROJECT_ROOT", "C:\\test\\project");
+        let config = MemoryConfig::from_env().expect("from_env should accept valid PROJECT_ROOT");
+        assert!(config.db_path.contains("C:\\test\\project"));
+
+        // Restore
+        match old {
+            Some(v) => env::set_var("PROJECT_ROOT", v),
+            None => env::remove_var("PROJECT_ROOT"),
+        }
     }
 }

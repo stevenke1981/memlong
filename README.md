@@ -2,7 +2,9 @@
 
 Memlong is a local-first long-term memory system for coding agents. It stores durable facts, preferences, decisions, code patterns, and project knowledge across sessions, then retrieves relevant memories through hybrid semantic, keyword, and temporal ranking.
 
-The core is implemented in Rust and exposed as an MCP server. A small TypeScript shim provides optional OpenCode lifecycle hooks for automatic retrieval and capture.
+The core is implemented in Rust and exposed as an MCP server (`memlong-memory`). A small TypeScript shim provides optional OpenCode lifecycle hooks for automatic retrieval and capture.
+
+**Supported clients:** OpenCode, Codex, Claude Code — all through MCP stdio.
 
 ## What It Provides
 
@@ -18,11 +20,11 @@ The core is implemented in Rust and exposed as an MCP server. A small TypeScript
 ## Architecture
 
 ```text
-OpenCode / Codex / MCP Client
+OpenCode / Codex / Claude Code
           |
-          | JSON-RPC over stdio
+          | MCP stdio JSON-RPC
           v
-memory-mcp-server
+memory-mcp-server (memlong-memory)
           |
           v
 memory-core
@@ -31,6 +33,16 @@ memory-core
   |-- Tantivy BM25 index
   `-- extraction, consolidation, retrieval, decay
 ```
+
+### 三層架構
+
+| 層 | 說明 | 適用 client |
+|---|---|---|
+| **MCP server** (`memory-mcp-server`) | 跨工具通用能力，提供 `search_memories`、`add_memory` 等 tools | OpenCode, Codex, Claude Code |
+| **OpenCode plugin** (`plugin/`) | 僅 OpenCode lifecycle 自動注入與自動記憶寫入 | OpenCode |
+| **Agent instructions** (`AGENTS.md`, `CLAUDE.md`) | 指示 Codex / Claude agent 主動呼叫 MCP tools | Codex, Claude Code |
+
+Codex 與 Claude Code **不依賴 OpenCode plugin**，而是透過專案 `AGENTS.md` / `CLAUDE.md` 指示 agent 主動使用 MCP tools。
 
 Default project-local data is stored under `.opencode/`:
 
@@ -67,6 +79,8 @@ target\release\memory-mcp-server.exe
 
 ### Install On Windows
 
+> **Note:** No release assets have been published yet. Use `-FromSource` (source build) which requires Rust toolchain.
+
 Build and install from the checkout:
 
 ```powershell
@@ -79,7 +93,33 @@ Install a published release when available:
 powershell -ExecutionPolicy Bypass -File .\install.ps1 -Version v0.1.0
 ```
 
-The installer places the executable under `%USERPROFILE%\.config\opencode-memory\bin` and invokes its `install` command to configure supported MCP clients. Restart the client after installation.
+### Install On Linux / macOS
+
+```bash
+# Source build (recommended until first release)
+bash install.sh --from-source
+
+# With specific client config
+bash install.sh --from-source --client all
+```
+
+The installer places the executable under `~/.config/memlong-memory/bin` (Linux/macOS) or `%USERPROFILE%\.config\memlong-memory\bin` (Windows) and invokes its `install` command to configure supported MCP clients. Restart the client after installation.
+
+### Uninstall
+
+```powershell
+# Windows
+.\uninstall.ps1
+```
+
+```bash
+# Linux / macOS
+bash uninstall.sh
+```
+
+Or remove manually:
+1. Delete the binary directory (`~/.config/memlong-memory/` or `%USERPROFILE%\.config\memlong-memory\`)
+2. Remove the MCP server entry from your client config (opencode.jsonc, config.toml, or .mcp.json)
 
 ### Configure The Models
 
@@ -153,7 +193,7 @@ Search weights must be finite, non-negative, and sum to `1.0`.
 
 ## Agent Guide
 
-Agents working in this repository should treat `opencode-memory-system.md` as the authoritative product specification and preserve these contracts:
+Agents working in this repository should treat `spec.md` and `AGENTS.md` as the authoritative specifications and preserve these contracts:
 
 1. Core memory behavior belongs in Rust. TypeScript remains a thin lifecycle adapter.
 2. Memory content is ADD-only. Access statistics, retention, importance, and archival metadata may be updated.
@@ -212,10 +252,18 @@ Artifacts are written under `target/`.
 
 ## Documentation
 
-- Full product and technical specification: [`opencode-memory-system.md`](opencode-memory-system.md)
-- Condensed technical specification: [`spec.md`](spec.md)
-- Implementation status: [`task.md`](task.md)
-- Memory extraction skill: [`skills/memory-extraction.md`](skills/memory-extraction.md)
+- Agent rules: [`AGENTS.md`](AGENTS.md) (OpenCode / Codex), [`CLAUDE.md`](CLAUDE.md) (Claude Code)
+- Technical specification: [`spec.md`](spec.md)
+- Test & acceptance plan: [`test.md`](test.md)
+- Implementation plan: [`plan.md`](plan.md)
+- Task list: [`todos.md`](todos.md)
+- Client config examples: [`examples/`](examples/)
+- OpenCode integration: [`docs/opencode.md`](docs/opencode.md)
+- Codex integration: [`docs/codex.md`](docs/codex.md)
+- Claude Code integration: [`docs/claude-code.md`](docs/claude-code.md)
+- Config reference: [`docs/config-reference.md`](docs/config-reference.md)
+- Full product specification: [`opencode-memory-system.md`](opencode-memory-system.md)
+- Baseline report: [`docs/baseline.md`](docs/baseline.md)
 
 ## License
 
