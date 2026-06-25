@@ -1,4 +1,4 @@
-use memory_core::{
+use agents_memory_core::{
     config::MemoryConfig,
     models::{MemoryScope, SearchQuery},
     service::MemoryService,

@@ -13,8 +13,8 @@ $ErrorActionPreference = "Stop"
 # Ensure security protocols support TLS 1.2 for download
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$ServerName = "opencode-memory"
-$BinaryName = "opencode-memory.exe"
+$ServerName = "ams-memory"
+$BinaryName = "ams.exe"
 
 # Resolve target directory
 $UserProfile = if ($env:USERPROFILE) { $env:USERPROFILE } else { [System.Environment]::GetFolderPath('UserProfile') }
@@ -31,7 +31,7 @@ if ($PrintConfig) {
         Write-Host "Add to $(Join-Path $UserProfile '.config\opencode\opencode.jsonc'):"
         Write-Host '{'
         Write-Host '  "mcp": {'
-        Write-Host '    "opencode-memory": {'
+        Write-Host '    "ams-memory": {'
         Write-Host '      "type": "local",'
         Write-Host "      `"command`": [`"$StableExe`"],"
         Write-Host '      "enabled": true,'
@@ -47,7 +47,7 @@ if ($PrintConfig) {
         Write-Host "--- Codex (config.toml) ---"
         Write-Host "Add to $(Join-Path $UserProfile '.codex\config.toml'):"
         $CleanPath = $StableExe -replace '\\', '/'
-        Write-Host "[mcp_servers.opencode-memory]"
+        Write-Host "[mcp_servers.ams-memory]"
         Write-Host "command = `"$CleanPath`""
         Write-Host "args = []"
         Write-Host ""
@@ -58,7 +58,7 @@ if ($PrintConfig) {
         Write-Host "Add to $(Join-Path $UserProfile '.claude\.mcp.json'):"
         Write-Host '{'
         Write-Host '  "mcpServers": {'
-        Write-Host '    "opencode-memory": {'
+        Write-Host '    "ams-memory": {'
         Write-Host '      "command": "'"$StableExe"'",'
         Write-Host '      "args": [],'
         Write-Host '      "disabled": false,'
@@ -98,7 +98,7 @@ if (-not $FromSource) {
     $ZipName = "$ServerName-$TagVersion-x86_64-pc-windows-msvc.zip"
     $Url = "https://github.com/stevenke1981/memlong/releases/download/$TagVersion/$ZipName"
     
-    $TempDir = Join-Path $env:TEMP "opencode-memory-install-$(Get-Random)"
+    $TempDir = Join-Path $env:TEMP "ams-memory-install-$(Get-Random)"
     New-Item -ItemType Directory -Force -Path $TempDir | Out-Null
     $ZipPath = Join-Path $TempDir $ZipName
 
@@ -149,7 +149,7 @@ if ($FromSource) {
     }
 
     # Verify built binary
-    $BuiltExe = "target/release/memory-mcp-server.exe"
+    $BuiltExe = "target/release/ams.exe"
     if (-not (Test-Path $BuiltExe)) {
         throw "Built binary not found at $BuiltExe. Please ensure you built it first or run without -SkipBuild."
     }

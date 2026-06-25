@@ -1,12 +1,12 @@
-# CLAUDE.md — memlong Claude Code 專案規則
+# CLAUDE.md — AMS Claude Code 專案規則
 
 ## 專案背景
 
-本專案是 local-first long-term memory system for coding agents。核心為 Rust MCP stdio server，目標支援 OpenCode、Codex、Claude Code。
+本專案是 Agents Memory Service (AMS)，local-first long-term memory system for coding agents。核心為 Rust MCP stdio server，目標支援 OpenCode、Codex、Claude Code。
 
 ## Claude Code 使用規則
 
-1. 每次開始任務時，若 MCP server 可用，先使用 `memlong-memory` 搜尋相關專案記憶。
+1. 每次開始任務時，若 MCP server 可用，先使用 `ams-memory` 搜尋相關專案記憶。
 2. 完成任務時，僅保存 durable lessons，不保存短期訊息。
 3. 不保存 secrets、API keys、tokens、passwords、private keys。
 4. 修改 storage / install / MCP schema 前先看 `spec.md` 與 `test.md`。
@@ -18,7 +18,7 @@
 Claude Code 可透過 `.mcp.json` 或 CLI 加入本地 stdio server：
 
 ```bash
-claude mcp add --transport stdio --scope user memlong-memory -- /absolute/path/to/memlong-memory
+claude mcp add --transport stdio --scope user ams-memory -- /absolute/path/to/ams-memory
 ```
 
 或專案根目錄 `.mcp.json`：
@@ -26,8 +26,8 @@ claude mcp add --transport stdio --scope user memlong-memory -- /absolute/path/t
 ```json
 {
   "mcpServers": {
-    "memlong-memory": {
-      "command": "/absolute/path/to/memlong-memory",
+    "ams-memory": {
+      "command": "/absolute/path/to/ams-memory",
       "args": [],
       "env": {
         "LLM_API_BASE": "mock",
@@ -48,7 +48,7 @@ cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo build --release
-./target/release/memory-mcp-server health
+./target/release/ams health
 cd plugin && npm ci && npm test
 ```
 

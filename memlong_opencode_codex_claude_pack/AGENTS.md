@@ -1,6 +1,6 @@
-# AGENTS.md — memlong Agent 工作規則
+# AGENTS.md — AMS Agent 工作規則
 
-本文件給 OpenCode、Codex 與其他 coding agents 使用。請在修改 `memlong` 專案前先讀完。
+本文件給 OpenCode、Codex 與其他 coding agents 使用。請在修改 AMS 專案前先讀完。
 
 ## 1. 工作語言
 
@@ -57,7 +57,7 @@
 - Rust tests：`cargo test --workspace`
 - Rust lint：`cargo clippy --workspace --all-targets -- -D warnings`
 - Plugin：`cd plugin && npm test`
-- MCP：`memory-mcp-server health`
+- MCP：`ams health`
 
 ### 4.3 MCP stdout 規則
 

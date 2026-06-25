@@ -1,7 +1,7 @@
 # Copy this block into ~/.codex/config.toml
 
-[mcp_servers.memlong-memory]
-command = "/absolute/path/to/memlong-memory"
+[mcp_servers.ams-memory]
+command = "/absolute/path/to/ams-memory"
 args = []
 enabled = true
 startup_timeout_sec = 30

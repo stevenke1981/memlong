@@ -13,9 +13,9 @@ The plan was based on public repository inspection of:
 - plugin/src/response.ts
 - install.sh
 - install.ps1
-- crates/memory-core/src/service.rs
-- crates/memory-mcp-server/src/server.rs
-- crates/memory-mcp-server/src/main.rs
+- crates/agents-memory-core/src/service.rs
+- crates/agents-memory-servics/src/server.rs
+- crates/agents-memory-servics/src/main.rs
 
 External compatibility references:
 

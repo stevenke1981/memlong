@@ -1,5 +1,5 @@
+use agents_memory_core::{config::MemoryConfig, service::MemoryService};
 use anyhow::Result;
-use memory_core::{config::MemoryConfig, service::MemoryService};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 

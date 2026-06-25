@@ -1,7 +1,7 @@
 {
   "mcpServers": {
-    "memlong-memory": {
-      "command": "/absolute/path/to/memlong-memory",
+    "ams-memory": {
+      "command": "/absolute/path/to/ams-memory",
       "args": [],
       "env": {
         "PROJECT_ROOT": "/absolute/path/to/your/project",

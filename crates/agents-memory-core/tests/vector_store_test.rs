@@ -1,4 +1,4 @@
-use memory_core::storage::VectorStore;
+use agents_memory_core::storage::VectorStore;
 use tempfile::tempdir;
 
 #[test]

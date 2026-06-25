@@ -2,12 +2,12 @@
 set -euo pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
-# memlong MCP Server — Unix Install Script
+# AMS MCP Server — Unix Install Script
 # Supports Linux (x86_64, aarch64) and macOS (x86_64, aarch64)
 # ─────────────────────────────────────────────────────────────────────────────
 
-SERVER_NAME="opencode-memory"
-BINARY_NAME="memory-mcp-server"
+SERVER_NAME="ams-memory"
+BINARY_NAME="ams"
 VERSION="v0.1.0"
 FROM_SOURCE=false
 CLIENT="all"
@@ -107,7 +107,7 @@ if $PRINT_CONFIG; then
             echo "Add to ~/.config/opencode/opencode.jsonc:"
             echo '{'
             echo '  "mcp": {'
-            echo '    "opencode-memory": {'
+            echo '    "ams-memory": {'
             echo '      "type": "local",'
             echo '      "command": ["'"$STABLE_EXE"'"],'
             echo '      "enabled": true,'
@@ -123,7 +123,7 @@ if $PRINT_CONFIG; then
         all|codex)
             echo "--- Codex (config.toml) ---"
             echo "Add to ~/.codex/config.toml:"
-            echo "[mcp_servers.opencode-memory]"
+            echo "[mcp_servers.ams-memory]"
             echo "command = \"$STABLE_EXE\""
             echo "args = []"
             echo ""
@@ -135,7 +135,7 @@ if $PRINT_CONFIG; then
             echo "Add to ~/.claude/.mcp.json:"
             echo '{'
             echo '  "mcpServers": {'
-            echo '    "opencode-memory": {'
+            echo '    "ams-memory": {'
             echo '      "command": "'"$STABLE_EXE"'",'
             echo '      "args": [],'
             echo '      "disabled": false,'
@@ -178,7 +178,7 @@ if ! $FROM_SOURCE; then
     echo "Attempting to download release $TAG_VERSION from GitHub..."
     echo "URL: $URL"
 
-    TMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t 'memlong-install')"
+    TMP_DIR="$(mktemp -d 2>/dev/null || mktemp -d -t 'ams-install')"
     ARCHIVE_PATH="$TMP_DIR/$ARCHIVE_NAME"
 
     if command -v curl &>/dev/null; then
@@ -223,9 +223,10 @@ if $FROM_SOURCE; then
     cargo build --release
     echo "Source build complete."
 
-    BUILT_EXE="target/release/$BINARY_NAME"
+    BUILT_EXE="target/release/ams"
     if [[ ! -f "$BUILT_EXE" ]]; then
         echo "Error: Built binary not found at $BUILT_EXE"
+        echo "Expected: cargo build --release produces target/release/ams"
         exit 1
     fi
     SOURCE_EXE="$(cd "$(dirname "$BUILT_EXE")" && pwd)/$(basename "$BUILT_EXE")"

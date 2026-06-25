@@ -1,4 +1,4 @@
-use memory_core::consolidation::dedup::{is_exact_duplicate, is_near_duplicate};
+use agents_memory_core::consolidation::dedup::{is_exact_duplicate, is_near_duplicate};
 
 #[test]
 fn threshold_boundaries_are_inclusive() {

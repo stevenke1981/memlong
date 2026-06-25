@@ -1,5 +1,5 @@
-# OpenCode Agent 長期記憶系統
-## 計劃書 & 技術規格書 v1.0
+# Agents Memory Service (AMS) 長期記憶系統
+## 計劃書 & 技術規格書 v1.0 — 原 OpenCode Agent 長期記憶系統
 
 > **技術棧：** Rust 2021 (全核心) + TypeScript shim (Plugin 薄層)  
 > **架構：** MCP Server (Rust binary) + OpenCode Plugin (TS lifecycle hooks)  
@@ -268,7 +268,7 @@ Plugin.onSessionEnd(context)
 ### 1. Cargo Workspace 目錄結構
 
 ```
-opencode-memory/
+ams-memory/
 ├── Cargo.toml                          # workspace root
 ├── Cargo.lock
 │
@@ -1217,7 +1217,7 @@ interface McpClient {
 // OpenCode Plugin 主體
 // ─────────────────────────────────────────────────────────────
 export default {
-  name: "opencode-memory",
+  name: "ams-memory",
   version: "1.0.0",
 
   hooks: {
@@ -1244,7 +1244,7 @@ export default {
         ctx.injectSystemPrompt(formatMemoriesForInjection(memories));
       } catch (err) {
         // 記憶注入失敗不應阻斷對話
-        console.error("[opencode-memory] onChatStart error:", err);
+        console.error("[ams-memory] onChatStart error:", err);
       }
     },
 
@@ -1268,7 +1268,7 @@ export default {
             session_id: ctx.sessionId,
           });
         } catch (err) {
-          console.error("[opencode-memory] onMessageComplete error:", err);
+          console.error("[ams-memory] onMessageComplete error:", err);
         }
       });
     },
@@ -1283,7 +1283,7 @@ export default {
           project_id: ctx.projectId,
         });
       } catch (err) {
-        console.error("[opencode-memory] onSessionEnd error:", err);
+        console.error("[ams-memory] onSessionEnd error:", err);
       }
     },
   },
@@ -1315,7 +1315,7 @@ function formatMemoriesForInjection(memories: Memory[]): string {
 ```json
 {
   "mcp": {
-    "opencode-memory": {
+    "ams-memory": {
       "type": "local",
       "command": [
         "${HOME}/.cargo/bin/memory-mcp-server"
@@ -1343,7 +1343,7 @@ function formatMemoriesForInjection(memories: Memory[]): string {
     }
   },
   "plugins": [
-    "${HOME}/.config/opencode/plugins/opencode-memory"
+    "${HOME}/.config/opencode/plugins/ams-memory"
   ]
 }
 ```
@@ -1691,8 +1691,8 @@ Phase 1 (memory-core 基礎) → Phase 2 (MCP server) → Phase 3 (plugin) → P
 
 ```bash
 # 1. 建立 workspace
-cargo new --lib opencode-memory
-cd opencode-memory
+cargo new --lib ams-core
+cd ams-core
 
 # 2. 初始化子 crates
 cargo new --lib crates/memory-core
@@ -1717,11 +1717,11 @@ MEMORY_VECTOR_PATH=./test.usearch \
 MEMORY_TANTIVY_PATH=./test-tantivy \
 LLM_API_BASE=http://localhost:8080/v1 \
 LLM_API_KEY=local \
-./target/release/memory-mcp-server
+./target/release/ams
 
 # 8. CLI 測試
-./target/release/memory-cli search "Rust async preference"
-./target/release/memory-cli stats
+cargo run -p memory-cli -- search "Rust async preference"
+cargo run -p memory-cli -- stats
 ```
 
 ---

@@ -1,8 +1,8 @@
-# Memlong
+# Agents Memory Service (AMS)
 
-Memlong is a local-first long-term memory system for coding agents. It stores durable facts, preferences, decisions, code patterns, and project knowledge across sessions, then retrieves relevant memories through hybrid semantic, keyword, and temporal ranking.
+Agents Memory Service (AMS) is a local-first long-term memory system for coding agents. It stores durable facts, preferences, decisions, code patterns, and project knowledge across sessions, then retrieves relevant memories through hybrid semantic, keyword, and temporal ranking.
 
-The core is implemented in Rust and exposed as an MCP server (`memlong-memory`). A small TypeScript shim provides optional OpenCode lifecycle hooks for automatic retrieval and capture.
+The core is implemented in Rust and exposed as an MCP server (`ams-memory`). A small TypeScript shim provides optional OpenCode lifecycle hooks for automatic retrieval and capture.
 
 **Supported clients:** OpenCode, Codex, Claude Code — all through MCP stdio.
 
@@ -24,10 +24,10 @@ OpenCode / Codex / Claude Code
           |
           | MCP stdio JSON-RPC
           v
-memory-mcp-server (memlong-memory)
+agents-memory-servics (ams-memory)
           |
           v
-memory-core
+agents-memory-core
   |-- SQLite metadata and entities
   |-- USearch HNSW vectors
   |-- Tantivy BM25 index
@@ -38,7 +38,7 @@ memory-core
 
 | 層 | 說明 | 適用 client |
 |---|---|---|
-| **MCP server** (`memory-mcp-server`) | 跨工具通用能力，提供 `search_memories`、`add_memory` 等 tools | OpenCode, Codex, Claude Code |
+| **MCP server** (`agents-memory-servics`) | 跨工具通用能力，提供 `search_memories`、`add_memory` 等 tools | OpenCode, Codex, Claude Code |
 | **OpenCode plugin** (`plugin/`) | 僅 OpenCode lifecycle 自動注入與自動記憶寫入 | OpenCode |
 | **Agent instructions** (`AGENTS.md`, `CLAUDE.md`) | 指示 Codex / Claude agent 主動呼叫 MCP tools | Codex, Claude Code |
 
@@ -74,7 +74,7 @@ cargo build --release
 The MCP server is created at:
 
 ```text
-target\release\memory-mcp-server.exe
+target\release\ams.exe
 ```
 
 ### Install On Windows
@@ -103,7 +103,7 @@ bash install.sh --from-source
 bash install.sh --from-source --client all
 ```
 
-The installer places the executable under `~/.config/memlong-memory/bin` (Linux/macOS) or `%USERPROFILE%\.config\memlong-memory\bin` (Windows) and invokes its `install` command to configure supported MCP clients. Restart the client after installation.
+The installer places the executable under `~/.config/ams-memory/bin` (Linux/macOS) or `%USERPROFILE%\.config\ams-memory\bin` (Windows) and invokes its `install` command to configure supported MCP clients. Restart the client after installation.
 
 ### Uninstall
 
@@ -118,7 +118,7 @@ bash uninstall.sh
 ```
 
 Or remove manually:
-1. Delete the binary directory (`~/.config/memlong-memory/` or `%USERPROFILE%\.config\memlong-memory\`)
+1. Delete the binary directory (`~/.config/ams-memory/` or `%USERPROFILE%\.config\ams-memory\`)
 2. Remove the MCP server entry from your client config (opencode.jsonc, config.toml, or .mcp.json)
 
 ### Configure The Models
@@ -153,17 +153,17 @@ Important optional settings:
 ### Health Check
 
 ```powershell
-.\target\release\memory-mcp-server.exe health
+.\target\release\ams.exe health
 ```
 
 ### Debug CLI
 
 ```powershell
-cargo run -p memory-cli -- add --content "User prefers Rust for core services"
-cargo run -p memory-cli -- search --query "preferred implementation language"
-cargo run -p memory-cli -- list
-cargo run -p memory-cli -- stats
-cargo run -p memory-cli -- consolidate
+cargo run -p agents-memory-cli -- add --content "User prefers Rust for core services"
+cargo run -p agents-memory-cli -- search --query "preferred implementation language"
+cargo run -p agents-memory-cli -- list
+cargo run -p agents-memory-cli -- stats
+cargo run -p agents-memory-cli -- consolidate
 ```
 
 ### OpenCode Plugin
@@ -204,7 +204,7 @@ Agents working in this repository should treat `spec.md` and `AGENTS.md` as the 
 
 ### Code Discovery
 
-This repository is indexed by `codebase-memory-mcp` as `cbrlm+D-memlong`. Prefer graph tools before text search when exploring code:
+This repository is indexed by `codebase-memory-mcp` as `cbrlm+D-ams`. Prefer graph tools before text search when exploring code:
 
 1. `search_graph` or `rlm_filter`
 2. `trace_path`
@@ -218,12 +218,12 @@ Use grep or file search for configuration, documentation, literal error messages
 
 | Path | Responsibility |
 | --- | --- |
-| `crates/memory-core/src/service.rs` | High-level orchestration |
-| `crates/memory-core/src/extraction/` | LLM extraction and embeddings |
-| `crates/memory-core/src/consolidation/` | Deduplication, entity linking, decay |
-| `crates/memory-core/src/retrieval/` | Hybrid ranking and filtering |
-| `crates/memory-core/src/storage/` | SQLite, USearch, and Tantivy adapters |
-| `crates/memory-mcp-server/src/server.rs` | MCP schemas and handlers |
+| `crates/agents-memory-core/src/service.rs` | High-level orchestration |
+| `crates/agents-memory-core/src/extraction/` | LLM extraction and embeddings |
+| `crates/agents-memory-core/src/consolidation/` | Deduplication, entity linking, decay |
+| `crates/agents-memory-core/src/retrieval/` | Hybrid ranking and filtering |
+| `crates/agents-memory-core/src/storage/` | SQLite, USearch, and Tantivy adapters |
+| `crates/agents-memory-servics/src/server.rs` | MCP schemas and handlers |
 | `plugin/src/index.ts` | OpenCode lifecycle bridge |
 
 ### Required Verification

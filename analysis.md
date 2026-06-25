@@ -1,10 +1,10 @@
-# memlong 專案分析
+# AMS 專案分析
 
 分析日期：2026-06-25
 
 ## 1. 專案定位
 
-`memlong` 是一個 local-first 的 coding agent 長期記憶系統，核心使用 Rust，透過 MCP stdio server 暴露工具，並搭配 OpenCode TypeScript lifecycle shim。目標是讓 coding agent 在跨 session 時仍能保留偏好、決策、錯誤經驗、程式碼模式與專案知識。
+`memlong`（現更名為 Agents Memory Service / AMS）是一個 local-first 的 coding agent 長期記憶系統，核心使用 Rust，透過 MCP stdio server 暴露工具，並搭配 OpenCode TypeScript lifecycle shim。目標是讓 coding agent 在跨 session 時仍能保留偏好、決策、錯誤經驗、程式碼模式與專案知識。
 
 目前 README 描述的核心能力：
 
@@ -33,7 +33,7 @@ MCP stdio server 可以同時被 OpenCode、Codex、Claude Code 以本地 proces
 
 ### 2.4 已有 install command 初步處理 OpenCode / Codex
 
-`memory-mcp-server install --json` 會嘗試更新 OpenCode 與 Codex 設定，並移除 legacy MCP server name。這是可延伸到 Claude Code 的基礎。
+`ams install --json` 會嘗試更新 OpenCode 與 Codex 設定，並移除 legacy MCP server name。這是可延伸到 Claude Code 的基礎。
 
 ### 2.5 CI 有 Rust 與 plugin gate
 
@@ -50,20 +50,17 @@ MCP stdio server 可以同時被 OpenCode、Codex、Claude Code 以本地 proces
 
 專案中同時出現：
 
-- `memlong`
-- `opencode-memory`
-- `memory-mcp-server`
-- `opencode-memory.exe`
-- release archive `opencode-memory-v0.1.0-*`
+- `memlong`（舊名）
+- `opencode-memory`（舊 MCP server id，現改為 `ams-memory`）
+- `agents-memory-servics`（Rust crate 名）
+- `ams-memory`（MCP server id，Agents Memory Service）
 
-建議統一：
+當前命名決策：
 
-- repo：`memlong`
-- MCP server id：`memlong-memory`
-- binary stable name：`memlong-memory` 或 `opencode-memory`
-- legacy aliases：保留但只在 install migration 使用。
-
-若短期不改 binary name，至少在 README / install / config 範例中明確標示。
+- 專案名稱：**Agents Memory Service (AMS)**
+- MCP server id：`ams-memory`
+- 內部 crate 名：`agents-memory-core` / `agents-memory-servics` / `agents-memory-cli`
+- binary：`ams`（cargo build 產出）
 
 ### R2. OpenCode plugin 與 MCP install 責任尚未完全分離
 
@@ -107,7 +104,7 @@ Codex 需要 `~/.codex/config.toml` 的 `[mcp_servers.<id>]` table。Claude Code
 `install` 已處理 OpenCode / Codex，但尚未處理 Claude Code。建議：
 
 - 提供 `install --client claude`。
-- 生成 project `.mcp.json` 或輸出 `claude mcp add --scope user --transport stdio memlong-memory -- <binary>`。
+- 生成 project `.mcp.json` 或輸出 `claude mcp add --scope user --transport stdio ams-memory -- <binary>`。
 - 不自動改全域 Claude 設定，除非使用者明確加 `--global`。
 
 ### R8. release 沒有 published assets 時 install 會失敗
@@ -134,10 +131,10 @@ OpenCode / Codex / Claude Code
         │
         │ MCP stdio
         ▼
-memlong-memory MCP server
+ams-memory MCP server
         │
         ▼
-memory-core
+agents-memory-core
   ├── extraction: OpenAI-compatible chat + JSON schema validation
   ├── embedding: dimension-aware provider adapter
   ├── consolidation: ADD-only dedup + entity overlap + decay
@@ -157,7 +154,7 @@ memory-core
 
 ### Codex
 
-- 透過 `mcp_servers.memlong-memory` 啟動 stdio server。
+- 透過 `mcp_servers.ams-memory` 啟動 stdio server。
 - 使用 `AGENTS.md` 指示：開始任務先 search，完成任務後 add，重大決策 add。
 - 不依賴 OpenCode plugin lifecycle。
 

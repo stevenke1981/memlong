@@ -1,8 +1,8 @@
-# memlong 改善計畫 plan.md
+# AMS 改善計畫 plan.md
 
 ## 目標
 
-將 `memlong` 改造成一個可穩定支援 OpenCode、Codex、Claude Code 的本地優先長期記憶 MCP server，並建立完整的規格、測試、安裝、驗收與 agent 工作流程。
+將 AMS 改造成一個可穩定支援 OpenCode、Codex、Claude Code 的本地優先長期記憶 MCP server，並建立完整的規格、測試、安裝、驗收與 agent 工作流程。
 
 ## 非目標
 
@@ -44,7 +44,7 @@
    - `docs/claude-code.md`
    - `docs/config-reference.md`
 3. 統一命名：
-   - server id：`memlong-memory` 或保留 `opencode-memory`，但需全文件一致。
+   - server id：`ams-memory`（取代舊名 `memlong-memory` / `opencode-memory`）。
    - binary stable path：全文件一致。
 4. 補上 config snippets：
    - OpenCode `opencode.jsonc`
@@ -65,9 +65,9 @@
    - `--client opencode|codex|claude|all`。
    - `--dry-run` 顯示將修改哪些檔案。
    - `--print-config` 只輸出 config snippet，不寫入。
-2. `memory-mcp-server install`：
+2. `ams install`：
    - OpenCode：寫入 `mcp` local server。
-   - Codex：寫入 `[mcp_servers.memlong-memory]`。
+   - Codex：寫入 `[mcp_servers.ams-memory]`。
    - Claude：支援輸出 `.mcp.json` 或提示 `claude mcp add` 命令。
 3. `install --json` 回傳：
    - binary path

@@ -1,4 +1,4 @@
-# memlong 改善規劃包
+# AMS 改善規劃包（原 memlong）
 
 目標：針對 `https://github.com/stevenke1981/memlong.git` 做專案分析，提出一套可讓 OpenCode、Codex、Claude Code 都能使用的長期記憶系統改善方案。
 

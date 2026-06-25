@@ -2,7 +2,7 @@
 
 ## 整合方式
 
-OpenCode 透過 `opencode.jsonc` 中的 MCP 設定來啟動 `memlong-memory` server。
+OpenCode 透過 `opencode.jsonc` 中的 MCP 設定來啟動 `ams-memory` server。
 
 ## 設定範例
 
@@ -12,9 +12,9 @@ OpenCode 透過 `opencode.jsonc` 中的 MCP 設定來啟動 `memlong-memory` ser
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "memlong-memory": {
+    "ams-memory": {
       "type": "local",
-      "command": ["/absolute/path/to/memlong-memory"],
+      "command": ["/absolute/path/to/ams-memory"],
       "enabled": true,
       "timeout": 120000,
       "environment": {
@@ -39,7 +39,7 @@ OpenCode 透過 `opencode.jsonc` 中的 MCP 設定來啟動 `memlong-memory` ser
 ```bash
 # 從 source build
 cargo build --release
-./target/release/memory-mcp-server install --client opencode
+./target/release/ams install --client opencode
 ```
 
 或使用 install script：
@@ -72,11 +72,11 @@ npm run build
 ## 驗證
 
 ```bash
-memory-mcp-server health
+ams health
 ```
 
 或在 OpenCode 中輸入：
 
 ```text
-用 memlong-memory 搜尋關於這個專案的記憶
+用 ams-memory 搜尋關於這個專案的記憶
 ```

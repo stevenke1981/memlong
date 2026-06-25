@@ -1,15 +1,15 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/memory-core",
-    "crates/memory-mcp-server",
-    "crates/memory-cli",
+    "crates/agents-memory-core",
+    "crates/agents-memory-servics",
+    "crates/agents-memory-cli",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["OpenCode Memory System"]
+authors = ["Agents Memory Service (AMS)"]
 license = "MIT"
 
 [workspace.dependencies]

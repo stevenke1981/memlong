@@ -2,8 +2,8 @@
 
 - `[x]` Setup workspace structure and basic configurations
   - `[x]` Initialize workspace root `Cargo.toml`
-  - `[x]` Create directory structure for crates (`memory-core`, `memory-mcp-server`, `memory-cli`), `plugin`, and `tests`
-- `[x]` Implement `memory-core` library Crate
+  - `[x]` Create directory structure for crates (`agents-memory-core`, `agents-memory-servics`, `agents-memory-cli`), `plugin`, and `tests`
+- `[x]` Implement `agents-memory-core` library Crate
   - `[x]` Define Models (`Memory`, `MemoryCategory`, `MemoryScope`, `SearchQuery`, `SearchResult`)
   - `[x]` Set up SQLite migrations (WAL mode, schemas, indices, configs)
   - `[x]` Implement SQLite database store module (`SqliteStore`)
@@ -14,10 +14,10 @@
   - `[x]` Implement ADD-only Consolidation Engine (Similarity checking, entity logic, Ebbinghaus decay)
   - `[x]` Implement Hybrid Retrieval Engine (Semantic + BM25 + Recency score fusion and filters)
   - `[x]` Implement high-level orchestrator `MemoryService`
-- `[x]` Implement `memory-mcp-server` Binary Crate
+- `[x]` Implement `agents-memory-servics` Binary Crate
   - `[x]` Implement MCP Stdio transport using custom JSON-RPC stdio loop
   - `[x]` Define and implement all 6 MCP Tools (`add_memory`, `search_memories`, `get_memories`, etc.)
-- `[x]` Implement `memory-cli` Debug Binary Crate
+- `[x]` Implement `agents-memory-cli` Debug Binary Crate
   - `[x]` Implement subcommands: `add`, `search`, `list`, `stats`, `consolidate`
 - `[x]` Implement TypeScript Shim Plugin
   - `[x]` Set up plugin workspace (`package.json`, `tsconfig.json`)

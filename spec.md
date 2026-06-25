@@ -1,18 +1,18 @@
-# Technical Specification: OpenCode Agent Long-Term Memory System (spec.md)
+# Technical Specification: Agents Memory Service (spec.md)
 
-This specification defines the data models, database schema, extraction guidelines, consolidation rules, retrieval metrics, and API protocols for the OpenCode Agent Long-Term Memory System.
+This specification defines the data models, database schema, extraction guidelines, consolidation rules, retrieval metrics, and API protocols for the Agents Memory Service (AMS).
 
 ## 1. Directory Structure
 
 The system is structured as a Cargo workspace:
 
 ```
-opencode-memory/
+ams/
 ├── Cargo.toml                          # workspace root
 ├── Cargo.lock
 │
 ├── crates/
-│   ├── memory-core/                    # Core library crate
+│   ├── agents-memory-core/                    # Core library crate
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── lib.rs                  # Entry point
@@ -48,14 +48,14 @@ opencode-memory/
 │   │           └── migrations/
 │   │               └── V1__init.sql    # Database schema
 │   │
-│   ├── memory-mcp-server/              # MCP stdio executable
+│   ├── agents-memory-servics/              # MCP stdio executable
 │   │   ├── Cargo.toml
 │   │   └── src/
 │   │       ├── main.rs
 │   │       ├── server.rs               # MCP JSON-RPC Server
 │   │       └── tools/                  # MCP Tool definitions
 │   │
-│   └── memory-cli/                     # Debug CLI executable
+│   └── agents-memory-cli/                     # Debug CLI executable
 │       ├── Cargo.toml
 │       └── src/
 │           └── main.rs

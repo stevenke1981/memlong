@@ -11,7 +11,7 @@ Legend:
 
 ## Already Implemented
 
-- Cargo workspace with `memory-core`, `memory-mcp-server`, and `memory-cli`.
+- Cargo workspace with `agents-memory-core`, `agents-memory-servics`, and `agents-memory-cli`.
 - SQLite storage with WAL mode, migrations, memory/entity/session/system tables.
 - Persistent USearch-backed `VectorStore`, Tantivy `TextIndex`, and hybrid retrieval.
 - MCP tools: `add_memory`, `search_memories`, `get_memories`, `delete_memory`, `consolidate_memories`, `get_memory_stats`.
@@ -23,56 +23,56 @@ Legend:
 
 - [x] Commit and push the OpenCode installer path fix.
   - Commit `b9b50e8` — installer now targets `%USERPROFILE%\.config\opencode\opencode.jsonc` with JSONC comment support.
-  - Files: `crates/memory-mcp-server/src/main.rs`, `docs/spec-gap-todo.md`.
+  - Files: `crates/agents-memory-servics/src/main.rs`, `docs/spec-gap-todo.md`.
 
 - [x] Enforce required scope parameters and support `Agent` scope properly.
   - Commit `ee93cc8` — `agent_id` added to `AddMemoryInput`, `MemoryService::add_memory()`, and `ConsolidationEngine::consolidate_single()`. Scope validation rejects missing `project_id` for Project scope and missing `agent_id` for Agent scope.
-  - Files: `crates/memory-mcp-server/src/server.rs`, `crates/memory-core/src/service.rs`, `crates/memory-core/src/consolidation/engine.rs`, `crates/memory-cli/src/main.rs`.
+  - Files: `crates/agents-memory-servics/src/server.rs`, `crates/agents-memory-core/src/service.rs`, `crates/agents-memory-core/src/consolidation/engine.rs`, `crates/agents-memory-cli/src/main.rs`.
 
 - [x] Add rollback or transaction-style cleanup for partial insert failures.
   - Commit `ee93cc8` — each index step (vector → text → entity) rolls back the previous steps on failure. Tests confirm no SQLite orphans remain.
-  - Files: `crates/memory-core/src/consolidation/engine.rs`.
+  - Files: `crates/agents-memory-core/src/consolidation/engine.rs`.
 
 - [x] Define and test extraction graceful degradation.
   - Commit `ee93cc8` — extraction/HTTP errors are caught with `tracing::warn!`, return empty `Vec` instead of propagating. Embedding failures skip the chunk. Consolidation errors also degraded.
-  - Files: `crates/memory-core/src/service.rs`.
+  - Files: `crates/agents-memory-core/src/service.rs`.
 
 ## P1 Todo
 
 - [ ] Enforce `MEMORY_MAX_RECORDS`.
   - Spec/config evidence: `MEMORY_MAX_RECORDS` is parsed as part of runtime config.
   - Current evidence: `MemoryConfig.max_records` is stored but not used by insertion, retrieval, decay, or archival logic.
-  - Suggested files: `crates/memory-core/src/config.rs`, `crates/memory-core/src/service.rs`, `crates/memory-core/src/storage/sqlite.rs`.
+  - Suggested files: `crates/agents-memory-core/src/config.rs`, `crates/agents-memory-core/src/service.rs`, `crates/agents-memory-core/src/storage/sqlite.rs`.
 
 - [ ] Populate and maintain `session_stats`.
   - Spec evidence: schema defines per-session extracted/added/deduplicated/retrieved counters.
   - Current evidence: migration creates `session_stats`, but there are no read/write helpers or service updates.
-  - Suggested files: `crates/memory-core/src/storage/sqlite.rs`, `crates/memory-core/src/service.rs`, `crates/memory-core/tests/lifecycle_test.rs`.
+  - Suggested files: `crates/agents-memory-core/src/storage/sqlite.rs`, `crates/agents-memory-core/src/service.rs`, `crates/agents-memory-core/tests/lifecycle_test.rs`.
 
 - [ ] Persist actual embedding metadata in `system_config`.
   - Spec evidence: vector dimensions and embedding model are meant to be tracked for dimension migration safety.
   - Current evidence: migration inserts `vector_dimensions = 1536` and `embedding_model = unknown`; runtime config does not update them.
-  - Suggested files: `crates/memory-core/src/storage/sqlite.rs`, `crates/memory-core/src/service.rs`, `crates/memory-core/src/storage/migrations/1_init.sql`.
+  - Suggested files: `crates/agents-memory-core/src/storage/sqlite.rs`, `crates/agents-memory-core/src/service.rs`, `crates/agents-memory-core/src/storage/migrations/1_init.sql`.
 
 - [ ] Add USearch compaction/rebuild path during batch consolidation.
   - Spec evidence: session-end consolidation includes index compaction for Tantivy and USearch.
   - Current evidence: `batch_consolidate()` compacts only Tantivy.
-  - Suggested files: `crates/memory-core/src/storage/vector.rs`, `crates/memory-core/src/consolidation/engine.rs`.
+  - Suggested files: `crates/agents-memory-core/src/storage/vector.rs`, `crates/agents-memory-core/src/consolidation/engine.rs`.
 
 - [ ] Add MCP protocol smoke test for OpenCode compatibility.
   - Spec evidence: completion requires MCP Server to be loadable by OpenCode and respond to tool list.
   - Current evidence: Rust tests cover service lifecycle, but there is no root integration test that starts the binary and verifies MCP `tools/list`.
-  - Suggested files: `tests/integration/`, `crates/memory-mcp-server/tests/`, `scripts/`.
+  - Suggested files: `tests/integration/`, `crates/agents-memory-servics/tests/`, `scripts/`.
 
 - [ ] Decide whether to implement or remove the startup `initialized` stderr event requirement.
   - Spec evidence: AGENTS section says startup should immediately emit an initialized JSON-RPC event to stderr.
   - Current evidence: server logs normal tracing messages to stderr and uses rmcp over stdout/stdin; no explicit initialized event is emitted.
-  - Suggested files: `crates/memory-mcp-server/src/main.rs`, `opencode-memory-system.md`, `docs/AGENTS.md`.
+  - Suggested files: `crates/agents-memory-servics/src/main.rs`, `opencode-memory-system.md`, `docs/AGENTS.md`.
 
 - [ ] Add benchmark and recall test suite.
   - Spec evidence: 10K/100K search latency, add latency, memory usage, disk usage, and recall accuracy are explicit targets.
   - Current evidence: no `benches/` directory or Criterion/performance harness exists.
-  - Suggested files: `benches/`, `crates/memory-core/Cargo.toml`, `docs/benchmarks.md`.
+  - Suggested files: `benches/`, `crates/agents-memory-core/Cargo.toml`, `docs/benchmarks.md`.
 
 - [ ] Add coverage measurement workflow for the stated module targets.
   - Spec evidence: extraction, consolidation, retrieval, storage, and MCP server each have coverage goals.

@@ -13,21 +13,21 @@
 ### Task 1: Lock Down ADD-only and Vector Lifecycle Behavior
 
 **Files:**
-- Modify: `crates/memory-core/tests/lifecycle_test.rs`
-- Create: `crates/memory-core/tests/vector_store_test.rs`
+- Modify: `crates/agents-memory-core/tests/lifecycle_test.rs`
+- Create: `crates/agents-memory-core/tests/vector_store_test.rs`
 
 - [ ] Add an integration test with `dedup_threshold = 1.0` proving cosine similarity exactly at the threshold is deduplicated.
 - [ ] Add an integration test proving identical embeddings in different scopes/projects do not deduplicate each other.
 - [ ] Add a vector-store test proving `remove` excludes an ID immediately and after reopening the persisted index.
-- [ ] Run `cargo test -p memory-core --tests` and confirm the new assertions fail against the current implementation.
+- [ ] Run `cargo test -p agents-memory-core --tests` and confirm the new assertions fail against the current implementation.
 
 ### Task 2: Replace the Flat Vector Fallback with USearch
 
 **Files:**
 - Modify: `Cargo.toml`
-- Modify: `crates/memory-core/Cargo.toml`
-- Modify: `crates/memory-core/src/storage/vector.rs`
-- Modify: `crates/memory-core/src/error.rs`
+- Modify: `crates/agents-memory-core/Cargo.toml`
+- Modify: `crates/agents-memory-core/src/storage/vector.rs`
+- Modify: `crates/agents-memory-core/src/error.rs`
 
 - [ ] Add the `usearch = "2"` workspace dependency.
 - [ ] Construct a cosine/F32 USearch index using the configured embedding dimensions.
@@ -38,8 +38,8 @@
 ### Task 3: Correct Consolidation Boundaries and Scope Isolation
 
 **Files:**
-- Modify: `crates/memory-core/src/storage/sqlite.rs`
-- Modify: `crates/memory-core/src/consolidation/engine.rs`
+- Modify: `crates/agents-memory-core/src/storage/sqlite.rs`
+- Modify: `crates/agents-memory-core/src/consolidation/engine.rs`
 
 - [ ] Add `get_memory_by_vector_id` to `SqliteStore` and stop reaching into its pool from engines.
 - [ ] Treat similarity `>= dedup_threshold` as exact duplicate and `>= near_dedup_threshold` as near duplicate.
@@ -49,10 +49,10 @@
 ### Task 4: Keep SQLite, Vector, Text, and Entity State Consistent
 
 **Files:**
-- Modify: `crates/memory-core/src/storage/sqlite.rs`
-- Modify: `crates/memory-core/src/storage/text_index.rs`
-- Modify: `crates/memory-core/src/service.rs`
-- Test: `crates/memory-core/tests/lifecycle_test.rs`
+- Modify: `crates/agents-memory-core/src/storage/sqlite.rs`
+- Modify: `crates/agents-memory-core/src/storage/text_index.rs`
+- Modify: `crates/agents-memory-core/src/service.rs`
+- Test: `crates/agents-memory-core/tests/lifecycle_test.rs`
 
 - [ ] Fetch the memory before deleting its SQLite row.
 - [ ] Remove its vector ID and Tantivy document when deletion succeeds.
@@ -63,12 +63,12 @@
 ### Task 5: Honor Scoped Consolidation and Validate Retrieval Inputs
 
 **Files:**
-- Modify: `crates/memory-core/src/storage/sqlite.rs`
-- Modify: `crates/memory-core/src/consolidation/engine.rs`
-- Modify: `crates/memory-core/src/service.rs`
+- Modify: `crates/agents-memory-core/src/storage/sqlite.rs`
+- Modify: `crates/agents-memory-core/src/consolidation/engine.rs`
+- Modify: `crates/agents-memory-core/src/service.rs`
 - Modify: `crates/memory-mcp-server/src/server.rs`
-- Modify: `crates/memory-core/src/models/query.rs`
-- Test: `crates/memory-core/tests/lifecycle_test.rs`
+- Modify: `crates/agents-memory-core/src/models/query.rs`
+- Test: `crates/agents-memory-core/tests/lifecycle_test.rs`
 
 - [ ] Pass optional scope/project filters from the MCP tool through `MemoryService` into batch consolidation.
 - [ ] Query only matching memories for decay updates.

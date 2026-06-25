@@ -1,6 +1,6 @@
-# AGENTS.md — memlong Agent 工作規則
+# AGENTS.md — AMS Agent 工作規則
 
-本文件給 OpenCode、Codex 與其他 coding agents 使用。請在修改 `memlong` 專案前先讀完。
+本文件給 OpenCode、Codex 與其他 coding agents 使用。請在修改 AMS 專案前先讀完。
 
 ## 1. 工作語言
 
@@ -10,7 +10,7 @@
 
 ## 2. 專案目標
 
-`memlong` 是 local-first long-term memory MCP server。核心原則：
+`memlong` 是 local-first long-term memory MCP server（現更名為 Agents Memory Service / AMS）。核心原則：
 
 1. Rust core contains business logic。
 2. MCP stdio server exposes tools。
@@ -57,7 +57,7 @@
 - Rust tests：`cargo test --workspace`
 - Rust lint：`cargo clippy --workspace --all-targets -- -D warnings`
 - Plugin：`cd plugin && npm test`
-- MCP：`memory-mcp-server health`
+- MCP：`ams health`
 
 ### 4.3 MCP stdout 規則
 
@@ -121,13 +121,13 @@ MCP stdio mode 下：
 
 ## 7. Boundary contract
 
-### memory-core
+### agents-memory-core
 
 - 不知道 OpenCode / Codex / Claude 的設定檔格式。
 - 只提供 Rust API。
 - 負責資料一致性與檢索品質。
 
-### memory-mcp-server
+### agents-memory-servics
 
 - 負責 MCP tool schema 與 handler。
 - 可提供 `health`、`doctor`、`install` CLI command。

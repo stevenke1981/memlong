@@ -1,4 +1,4 @@
-use memory_core::models::{HybridWeights, SearchQuery};
+use agents_memory_core::models::{HybridWeights, SearchQuery};
 
 #[test]
 fn rejects_zero_top_k() {

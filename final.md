@@ -1,10 +1,10 @@
-# memlong 改善交付 final.md
+# AMS 改善交付 final.md
 
 ## 交付目標
 
 本次改善的最終狀態應達成：
 
-1. `memlong` 可作為本地 MCP stdio server。
+1. AMS 可作為本地 MCP stdio server。
 2. OpenCode 可透過 `opencode.jsonc` 使用 MCP tools，並可選用 TypeScript plugin 進行 lifecycle 自動記憶注入。
 3. Codex 可透過 `~/.codex/config.toml` 使用 MCP tools。
 4. Claude Code 可透過 `.mcp.json` 或 `claude mcp add --transport stdio` 使用 MCP tools。
@@ -44,8 +44,8 @@ cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo build --release
-./target/release/memory-mcp-server health
-./target/release/memory-mcp-server doctor --json
+./target/release/ams health
+./target/release/ams doctor --json
 
 cd plugin
 npm ci
@@ -65,8 +65,8 @@ cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo build --release
-.\target\release\memory-mcp-server.exe health
-.\target\release\memory-mcp-server.exe doctor --json
+.\target\release\ams.exe health
+.\target\release\ams.exe doctor --json
 
 Set-Location plugin
 npm ci

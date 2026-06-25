@@ -1,4 +1,4 @@
-# memlong 測試與驗收 test.md
+# AMS 測試與驗收 test.md
 
 ## 1. 測試原則
 
@@ -23,7 +23,7 @@ cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo build --release
-./target/release/memory-mcp-server health
+./target/release/ams health
 
 cd plugin
 npm ci
@@ -43,7 +43,7 @@ cargo fmt --all -- --check
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo build --release
-.\target\release\memory-mcp-server.exe health
+.\target\release\ams.exe health
 
 Set-Location plugin
 npm ci
@@ -135,7 +135,7 @@ npm test
 
 ### 3.10 Install tests
 
-- OpenCode JSON config creates `mcp.memlong-memory`。
+- OpenCode JSON config creates `mcp.ams-memory`。
 - OpenCode JSONC comments preserved enough or output JSON is valid。
 - Existing unrelated MCP entries preserved。
 - Legacy memory server names removed。
@@ -155,9 +155,9 @@ Expected config:
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "memlong-memory": {
+    "ams-memory": {
       "type": "local",
-      "command": ["/absolute/path/to/memlong-memory"],
+      "command": ["/absolute/path/to/ams-memory"],
       "enabled": true,
       "timeout": 120000,
       "environment": {
@@ -172,7 +172,7 @@ Expected config:
 Smoke prompt:
 
 ```text
-use memlong-memory to search memories for "Rust project preferences" and then add a memory saying this is a smoke test.
+use ams-memory to search memories for "Rust project preferences" and then add a memory saying this is a smoke test.
 ```
 
 ### 4.2 Codex
@@ -180,8 +180,8 @@ use memlong-memory to search memories for "Rust project preferences" and then ad
 Expected config:
 
 ```toml
-[mcp_servers.memlong-memory]
-command = "/absolute/path/to/memlong-memory"
+[mcp_servers.ams-memory]
+command = "/absolute/path/to/ams-memory"
 args = []
 enabled = true
 startup_timeout_sec = 30
@@ -192,7 +192,7 @@ env = { LLM_API_BASE = "mock", LLM_API_KEY = "mock" }
 Smoke prompt:
 
 ```text
-Use the memlong-memory MCP server. Search for memories about this project, then add a durable memory that the smoke test passed.
+Use the ams-memory MCP server. Search for memories about this project, then add a durable memory that the smoke test passed.
 ```
 
 ### 4.3 Claude Code
@@ -202,8 +202,8 @@ Expected `.mcp.json`:
 ```json
 {
   "mcpServers": {
-    "memlong-memory": {
-      "command": "/absolute/path/to/memlong-memory",
+    "ams-memory": {
+      "command": "/absolute/path/to/ams-memory",
       "args": [],
       "env": {
         "LLM_API_BASE": "mock",
@@ -224,7 +224,7 @@ claude mcp list
 Smoke prompt:
 
 ```text
-Use memlong-memory to search project memories, then save a durable lesson that Claude Code MCP smoke test passed.
+Use ams-memory to search project memories, then save a durable lesson that Claude Code MCP smoke test passed.
 ```
 
 ## 5. CI gate

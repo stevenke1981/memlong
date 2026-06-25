@@ -1,4 +1,4 @@
-use memory_core::{config::MemoryConfig, service::MemoryService};
+use agents_memory_core::{config::MemoryConfig, service::MemoryService};
 use std::sync::Arc;
 use tracing_subscriber::fmt::format::FmtSpan;
 

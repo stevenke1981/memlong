@@ -1,4 +1,4 @@
-# memlong 改善任務清單 todos.md
+# AMS 改善任務清單 todos.md
 
 ## Gate 0：開始前
 
@@ -9,7 +9,7 @@
 
 ## P0：文件與命名
 
-- [x] 決定正式 server id：`memlong-memory`（MCP server id）。
+- [x] 決定正式 server id：`ams-memory`（MCP server id，原 `memlong-memory`）。
 - [x] README 統一 server id / 三層架構說明 / 多 client 支援。
 - [x] 新增 `docs/opencode.md`。
 - [x] 新增 `docs/codex.md`。
@@ -47,7 +47,7 @@
 - [x] 新增 `--print-config` / `-PrintConfig`（script & binary 雙層支援）。
 - [x] release asset 下載失敗時提示 `--from-source`（已在 install.ps1 實作）。
 - [x] `--fallback-source` 自動 source build（已在 install.ps1 實作）。
-- [x] `memory-mcp-server install --json` 輸出 warnings 與 skipped clients。
+- [x] `ams install --json` 輸出 warnings 與 skipped clients。
 - [x] 新增 `doctor` command。
 - [x] 新增 `doctor --json`。
 - [x] `doctor` 檢查 OpenCode config。

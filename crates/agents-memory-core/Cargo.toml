@@ -1,5 +1,5 @@
 [package]
-name = "memory-core"
+name = "agents-memory-core"
 version.workspace = true
 edition.workspace = true
 

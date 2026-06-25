@@ -1,8 +1,8 @@
-use memory_core::consolidation::ConsolidationEngine;
-use memory_core::extraction::ExtractedMemory;
-use memory_core::models::MemoryCategory;
-use memory_core::models::{Memory, MemoryScope};
-use memory_core::storage::{SqliteStore, TextIndex, VectorStore};
+use agents_memory_core::consolidation::ConsolidationEngine;
+use agents_memory_core::extraction::ExtractedMemory;
+use agents_memory_core::models::MemoryCategory;
+use agents_memory_core::models::{Memory, MemoryScope};
+use agents_memory_core::storage::{SqliteStore, TextIndex, VectorStore};
 use std::sync::Arc;
 use tempfile::tempdir;
 
