@@ -5,6 +5,7 @@ use crate::error::Result;
 use crate::extraction::ExtractedMemory;
 use crate::models::{Memory, MemoryScope};
 use crate::storage::{SqliteStore, TextIndex, VectorStore};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -15,9 +16,12 @@ pub struct ConsolidationEngine {
     dedup_threshold: f64,
     near_dedup_threshold: f64,
     decay_lambda: f64,
+    embedding_model: String,
+    embedding_dim: usize,
 }
 
 impl ConsolidationEngine {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         sqlite: Arc<SqliteStore>,
         vector_store: Arc<VectorStore>,
@@ -25,6 +29,8 @@ impl ConsolidationEngine {
         dedup_threshold: f64,
         near_dedup_threshold: f64,
         decay_lambda: f64,
+        embedding_model: String,
+        embedding_dim: usize,
     ) -> Self {
         Self {
             sqlite,
@@ -33,7 +39,17 @@ impl ConsolidationEngine {
             dedup_threshold,
             near_dedup_threshold,
             decay_lambda,
+            embedding_model,
+            embedding_dim,
         }
+    }
+
+    pub fn embedding_model(&self) -> &str {
+        &self.embedding_model
+    }
+
+    pub fn embedding_dim(&self) -> usize {
+        self.embedding_dim
     }
 
     /// Consolidates a single extracted memory.
@@ -117,6 +133,13 @@ impl ConsolidationEngine {
         meta_map.insert("archived".to_string(), false.into());
         let metadata_str = serde_json::to_string(&meta_map)?;
 
+        // Compute content hash for online dedup and integrity checking
+        let content_hash = {
+            let mut hasher = Sha256::new();
+            hasher.update(ext.content.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+
         let memory = Memory {
             id: memory_id.clone(),
             content: ext.content.clone(),
@@ -134,6 +157,10 @@ impl ConsolidationEngine {
             entities: entities_str,
             vector_id: next_vector_id,
             metadata: metadata_str,
+            status: "active".to_string(),
+            embedding_model: Some(self.embedding_model.clone()),
+            embedding_dim: Some(self.embedding_dim as i64),
+            content_hash: Some(content_hash),
         };
 
         // Insert SQLite first

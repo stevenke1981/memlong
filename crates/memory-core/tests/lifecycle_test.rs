@@ -175,6 +175,34 @@ async fn keeps_identical_memories_isolated_between_projects() {
 }
 
 #[tokio::test]
+async fn extraction_parse_failure_degrades_gracefully() {
+    let tmp = tempdir().unwrap();
+    let mut config = test_config(&tmp);
+    config.llm_api_key = "mock-fail-parse".to_string();
+
+    let service = MemoryService::new(config).await.unwrap();
+    let result = service
+        .add_memory(
+            "Some conversation that will trigger a JSON parse failure.",
+            MemoryScope::Global,
+            None,
+            None,
+            "test-session".to_string(),
+            None,
+        )
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "extraction parse failure should not propagate; add_memory degrades gracefully"
+    );
+    assert!(
+        result.unwrap().is_empty(),
+        "should return empty vec on parse failure"
+    );
+}
+
+#[tokio::test]
 async fn delete_cleans_vector_and_entity_indexes() {
     let tmp = tempdir().unwrap();
     let service = MemoryService::new(test_config(&tmp)).await.unwrap();

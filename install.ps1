@@ -1,7 +1,11 @@
 param(
     [string]$Version = "v0.1.0",
     [switch]$FromSource,
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [ValidateSet("opencode", "codex", "claude", "all")]
+    [string]$Client = "all",
+    [switch]$DryRun,
+    [switch]$PrintConfig
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,6 +20,68 @@ $BinaryName = "opencode-memory.exe"
 $UserProfile = if ($env:USERPROFILE) { $env:USERPROFILE } else { [System.Environment]::GetFolderPath('UserProfile') }
 $TargetDir = Join-Path $UserProfile ".config\$ServerName\bin"
 $StableExe = Join-Path $TargetDir $BinaryName
+
+# ── Print Config (standalone, no binary needed) ─────────────────────────────
+if ($PrintConfig) {
+    Write-Host "Printing example configuration for client: $Client"
+    Write-Host ""
+
+    if ($Client -eq "all" -or $Client -eq "opencode") {
+        Write-Host "--- OpenCode (opencode.jsonc) ---"
+        Write-Host "Add to $(Join-Path $UserProfile '.config\opencode\opencode.jsonc'):"
+        Write-Host '{'
+        Write-Host '  "mcp": {'
+        Write-Host '    "opencode-memory": {'
+        Write-Host '      "type": "local",'
+        Write-Host "      `"command`": [`"$StableExe`"],"
+        Write-Host '      "enabled": true,'
+        Write-Host '      "timeout": 120000,'
+        Write-Host '      "environment": {}'
+        Write-Host '    }'
+        Write-Host '  }'
+        Write-Host '}'
+        Write-Host ""
+    }
+
+    if ($Client -eq "all" -or $Client -eq "codex") {
+        Write-Host "--- Codex (config.toml) ---"
+        Write-Host "Add to $(Join-Path $UserProfile '.codex\config.toml'):"
+        $CleanPath = $StableExe -replace '\\', '/'
+        Write-Host "[mcp_servers.opencode-memory]"
+        Write-Host "command = `"$CleanPath`""
+        Write-Host "args = []"
+        Write-Host ""
+    }
+
+    if ($Client -eq "all" -or $Client -eq "claude") {
+        Write-Host "--- Claude (.mcp.json) ---"
+        Write-Host "Add to $(Join-Path $UserProfile '.claude\.mcp.json'):"
+        Write-Host '{'
+        Write-Host '  "mcpServers": {'
+        Write-Host '    "opencode-memory": {'
+        Write-Host '      "command": "'"$StableExe"'",'
+        Write-Host '      "args": [],'
+        Write-Host '      "disabled": false,'
+        Write-Host '      "autoApprove": []'
+        Write-Host '    }'
+        Write-Host '  }'
+        Write-Host '}'
+        Write-Host ""
+    }
+
+    Write-Host "Copy these snippets into your agent config files."
+    return
+}
+
+# ── Dry Run (standalone, no binary needed) ──────────────────────────────────
+if ($DryRun) {
+    Write-Host "DRY RUN — no changes will be made"
+    Write-Host "Binary: $StableExe"
+    Write-Host "Would configure client(s): $Client"
+    Write-Host ""
+    Write-Host "Run without -DryRun to apply changes."
+    return
+}
 
 Write-Host "Installing $ServerName..."
 
@@ -134,9 +200,15 @@ try {
     }
 }
 
-# Step 4: Configure OpenCode/Codex by running the installed binary
+# Step 4: Configure agents by running the installed binary
+$InstallArgs = @("install")
+if ($Client -ne "all") {
+    $InstallArgs += "--client"
+    $InstallArgs += $Client
+}
+
 Write-Host "Running configuration installer from $InstalledExe..."
-& $InstalledExe install
+& $InstalledExe $InstallArgs
 if ($LASTEXITCODE -ne 0) {
     throw "Installed binary failed to configure system settings (exit code $LASTEXITCODE)."
 }

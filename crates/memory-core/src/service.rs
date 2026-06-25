@@ -64,6 +64,8 @@ impl MemoryService {
             config.dedup_threshold,
             config.near_dedup_threshold,
             config.decay_lambda,
+            config.embedding_model.clone(),
+            config.embedding_dim,
         ));
 
         let default_weights = HybridWeights {
@@ -209,7 +211,88 @@ impl MemoryService {
         let mut stats = self.sqlite.get_stats().await?;
         if let Some(object) = stats.as_object_mut() {
             object.insert("vector_count".to_string(), self.vector_store.size().into());
+            object.insert(
+                "unresolved_repairs".to_string(),
+                self.sqlite.count_unresolved_repairs().await?.into(),
+            );
+            object.insert(
+                "active_memories".to_string(),
+                self.sqlite.count_by_status("active").await?.into(),
+            );
         }
         Ok(stats)
+    }
+
+    /// Run diagnostic checks and optionally repair index consistency issues.
+    ///
+    /// Returns a JSON summary of:
+    /// - `issues_found`: number of issues detected
+    /// - `issues_fixed`: number of issues automatically repaired
+    /// - `details`: list of per-issue descriptions
+    /// - `stats_before` / `stats_after`: memory/vector/entity counts before and after repair
+    pub async fn repair_indexes(&self) -> Result<serde_json::Value> {
+        let stats_before = self.get_stats().await?;
+        let mut details: Vec<serde_json::Value> = Vec::new();
+        let mut issues_found = 0i64;
+        let mut issues_fixed = 0i64;
+
+        // 1. Entity reference cleanup
+        let cleaned_refs = self.sqlite.repair_entity_references().await?;
+        if cleaned_refs > 0 {
+            issues_found += cleaned_refs;
+            issues_fixed += cleaned_refs;
+            details.push(serde_json::json!({
+                "issue": "orphan_entity_references",
+                "severity": "warning",
+                "fixed": cleaned_refs,
+                "detail": format!("Removed {cleaned_refs} entity references to deleted memories")
+            }));
+        }
+
+        // 2. Backfill embedding metadata for pre-v2 memories
+        let backfilled = self.sqlite.backfill_embedding_metadata().await?;
+        if backfilled > 0 {
+            issues_fixed += backfilled;
+            details.push(serde_json::json!({
+                "issue": "missing_embedding_metadata",
+                "severity": "info",
+                "fixed": backfilled,
+                "detail": format!("Backfilled embedding model/dim for {backfilled} memories")
+            }));
+        }
+
+        // 3. Vector store consistency: count active memories vs vector store size
+        let active_count = self.sqlite.count_by_status("active").await?;
+        let vector_count = self.vector_store.size() as i64;
+        if active_count != vector_count {
+            let diff = (active_count - vector_count).abs();
+            issues_found += diff;
+            details.push(serde_json::json!({
+                "issue": "memory_vector_count_mismatch",
+                "severity": "warning",
+                "detail": format!(
+                    "Active memories: {active_count}, Vector index entries: {vector_count}. Diff: {diff}"
+                )
+            }));
+
+            // Log to repair queue
+            self.sqlite
+                .enqueue_repair_issue(
+                    None,
+                    "memory_vector_count_mismatch",
+                    &format!("active_memories={active_count}, vector_entries={vector_count}"),
+                )
+                .await?;
+        }
+
+        let stats_after = self.get_stats().await?;
+
+        Ok(serde_json::json!({
+            "issues_found": issues_found,
+            "issues_fixed": issues_fixed,
+            "details": details,
+            "stats_before": stats_before,
+            "stats_after": stats_after,
+        }))
     }
 }

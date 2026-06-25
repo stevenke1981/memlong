@@ -78,7 +78,13 @@ impl LlmClient {
         max_tokens: u32,
         temperature: f32,
     ) -> Result<String> {
-        if self.api_key == "mock" || self.api_key == "local" && self.api_base == "mock" {
+        if self.api_key.starts_with("mock") || (self.api_key == "local" && self.api_base == "mock")
+        {
+            // Test mode: return invalid JSON for parse-failure testing
+            if self.api_key == "mock-fail-parse" {
+                return Ok("not valid json { broken".to_string());
+            }
+
             // Mock response for testing
             return Ok(r#"
             {
@@ -152,7 +158,8 @@ impl LlmClient {
     }
 
     pub async fn embed(&self, text: &str, model: &str) -> Result<Vec<f32>> {
-        if self.api_key == "mock" || self.api_key == "local" && self.api_base == "mock" {
+        if self.api_key.starts_with("mock") || (self.api_key == "local" && self.api_base == "mock")
+        {
             // Return dummy vector of configured dimension
             return Ok(vec![0.1; self.embedding_dim]);
         }
@@ -218,5 +225,27 @@ mod tests {
         let client = LlmClient::new("mock", "mock", 64);
         let vec = client.embed("test", "mock-model").await.unwrap();
         assert_eq!(vec.len(), 64, "mock embed should return EMBEDDING_DIM=64");
+    }
+
+    #[tokio::test]
+    async fn mock_mode_with_local_key_and_mock_base() {
+        // LLM_API_BASE=mock + LLM_API_KEY=local should trigger mock mode
+        let client = LlmClient::new("mock", "local", 8);
+        let result = client
+            .complete("system prompt", "user prompt", "mock-model", 100, 0.1)
+            .await;
+        assert!(
+            result.is_ok(),
+            "local key + mock base should trigger mock mode"
+        );
+        let text = result.unwrap();
+        assert!(
+            text.contains("memories"),
+            "should return mock JSON with memories array"
+        );
+
+        let embed = client.embed("test", "mock-model").await;
+        assert!(embed.is_ok(), "embed should work in mock mode");
+        assert_eq!(embed.unwrap().len(), 8);
     }
 }

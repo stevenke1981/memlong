@@ -1,5 +1,6 @@
 use crate::error::Result;
 use crate::models::Memory;
+use sha2::Digest;
 use sqlx::{sqlite::SqliteConnectOptions, SqlitePool};
 use std::str::FromStr;
 
@@ -25,8 +26,8 @@ impl SqliteStore {
 
     pub async fn insert_memory(&self, memory: &Memory) -> Result<()> {
         sqlx::query(
-            "INSERT INTO memories (id, content, category, scope, project_id, agent_id, source_session, created_at, updated_at, last_accessed_at, access_count, importance_score, retention_factor, entities, vector_id, metadata)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO memories (id, content, category, scope, project_id, agent_id, source_session, created_at, updated_at, last_accessed_at, access_count, importance_score, retention_factor, entities, vector_id, metadata, status, embedding_model, embedding_dim, content_hash)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&memory.id)
         .bind(&memory.content)
@@ -44,6 +45,10 @@ impl SqliteStore {
         .bind(&memory.entities)
         .bind(memory.vector_id)
         .bind(&memory.metadata)
+        .bind(&memory.status)
+        .bind(&memory.embedding_model)
+        .bind(memory.embedding_dim)
+        .bind(&memory.content_hash)
         .execute(&self.pool)
         .await?;
 
@@ -267,6 +272,145 @@ impl SqliteStore {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Data consistency & repair helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Count memories with a specific status ('active', 'archived', etc.)
+    pub async fn count_by_status(&self, status: &str) -> Result<i64> {
+        let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM memories WHERE status = ?")
+            .bind(status)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(row.0)
+    }
+
+    /// Count unresolved repair queue entries
+    pub async fn count_unresolved_repairs(&self) -> Result<i64> {
+        let row: (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM index_repair_queue WHERE resolved_at IS NULL")
+                .fetch_one(&self.pool)
+                .await?;
+        Ok(row.0)
+    }
+
+    /// Add an issue to the repair queue
+    pub async fn enqueue_repair_issue(
+        &self,
+        memory_id: Option<&str>,
+        issue_type: &str,
+        details: &str,
+    ) -> Result<()> {
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        sqlx::query(
+            "INSERT INTO index_repair_queue (memory_id, issue_type, details, created_at)
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind(memory_id)
+        .bind(issue_type)
+        .bind(details)
+        .bind(now_ms)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Scan entities table and remove references to memories that no longer exist.
+    /// Returns the number of entity references cleaned up.
+    pub async fn repair_entity_references(&self) -> Result<i64> {
+        let entities: Vec<EntityRecord> = sqlx::query_as("SELECT * FROM entities")
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut total_cleaned = 0i64;
+        for mut entity in entities {
+            let memory_ids: Vec<String> =
+                serde_json::from_str(&entity.memory_ids).unwrap_or_default();
+            if memory_ids.is_empty() {
+                continue;
+            }
+
+            // Check which IDs still exist
+            let mut valid_ids = Vec::new();
+            for mid in &memory_ids {
+                let exists: Option<(i64,)> = sqlx::query_as("SELECT 1 FROM memories WHERE id = ?")
+                    .bind(mid)
+                    .fetch_optional(&self.pool)
+                    .await?;
+                if exists.is_some() {
+                    valid_ids.push(mid.clone());
+                }
+            }
+
+            if valid_ids.len() != memory_ids.len() {
+                total_cleaned += (memory_ids.len() - valid_ids.len()) as i64;
+                if valid_ids.is_empty() {
+                    sqlx::query("DELETE FROM entities WHERE id = ?")
+                        .bind(entity.id)
+                        .execute(&self.pool)
+                        .await?;
+                } else {
+                    entity.memory_ids = serde_json::to_string(&valid_ids)?;
+                    entity.frequency = valid_ids.len() as i32;
+                    entity.updated_at = chrono::Utc::now().timestamp_millis();
+                    self.upsert_entity(&entity).await?;
+                }
+            }
+        }
+        Ok(total_cleaned)
+    }
+
+    /// Migrate pre-v2 schema: fill embedding_model & embedding_dim from system_config
+    /// for memories that have NULL in those columns.
+    pub async fn backfill_embedding_metadata(&self) -> Result<i64> {
+        // Read current defaults from system_config
+        let model_row: Option<(String,)> =
+            sqlx::query_as("SELECT value FROM system_config WHERE key = 'embedding_model'")
+                .fetch_optional(&self.pool)
+                .await?;
+        let dim_row: Option<(String,)> =
+            sqlx::query_as("SELECT value FROM system_config WHERE key = 'vector_dimensions'")
+                .fetch_optional(&self.pool)
+                .await?;
+
+        let model = model_row
+            .map(|r| r.0)
+            .unwrap_or_else(|| "unknown".to_string());
+        let dim: i64 = dim_row.and_then(|r| r.0.parse().ok()).unwrap_or(1536);
+
+        // Compute content_hash for memories that don't have one
+        let memories: Vec<Memory> = sqlx::query_as(
+            "SELECT * FROM memories WHERE embedding_model IS NULL OR content_hash IS NULL",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let count = memories.len() as i64;
+        for mem in memories {
+            let content_hash = if mem.content_hash.is_none() {
+                let mut hasher = sha2::Sha256::new();
+                hasher.update(mem.content.as_bytes());
+                Some(format!("{:x}", hasher.finalize()))
+            } else {
+                None
+            };
+
+            sqlx::query(
+                "UPDATE memories SET embedding_model = COALESCE(embedding_model, ?),
+                 embedding_dim = COALESCE(embedding_dim, ?),
+                 content_hash = COALESCE(content_hash, ?)
+                 WHERE id = ?",
+            )
+            .bind(&model)
+            .bind(dim)
+            .bind(&content_hash)
+            .bind(&mem.id)
+            .execute(&self.pool)
+            .await?;
+        }
+        Ok(count)
     }
 
     pub async fn get_memories_for_decay(

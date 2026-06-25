@@ -40,47 +40,48 @@
 
 ## P1：Install / Doctor
 
-- [ ] `install.sh` 新增 `--client opencode|codex|claude|all`。
-- [ ] `install.ps1` 新增 `-Client opencode|codex|claude|all`。
-- [ ] 新增 `--dry-run` / `-DryRun`。
-- [ ] 新增 `--print-config` / `-PrintConfig`。
-- [ ] release asset 下載失敗時提示 `--from-source`。
-- [ ] 可選：`--fallback-source` 自動 source build。
-- [ ] `memory-mcp-server install --json` 輸出 warnings 與 skipped clients。
-- [ ] 新增 `doctor` command。
-- [ ] 新增 `doctor --json`。
-- [ ] `doctor` 檢查 OpenCode config。
-- [ ] `doctor` 檢查 Codex config。
-- [ ] `doctor` 提供 Claude Code 設定建議。
+- [x] 建立 `install.sh`（Unix：download + source-build 兩種路徑，支援 `--client`/`--dry-run`/`--print-config`）。
+- [x] `install.sh` 新增 `--client opencode|codex|claude|all`。
+- [x] `install.ps1` 新增 `-Client opencode|codex|claude|all`。
+- [x] 新增 `--dry-run` / `-DryRun`（script & binary 雙層支援）。
+- [x] 新增 `--print-config` / `-PrintConfig`（script & binary 雙層支援）。
+- [x] release asset 下載失敗時提示 `--from-source`（已在 install.ps1 實作）。
+- [x] `--fallback-source` 自動 source build（已在 install.ps1 實作）。
+- [x] `memory-mcp-server install --json` 輸出 warnings 與 skipped clients。
+- [x] 新增 `doctor` command。
+- [x] 新增 `doctor --json`。
+- [x] `doctor` 檢查 OpenCode config。
+- [x] `doctor` 檢查 Codex config。
+- [x] `doctor` 提供 Claude Code 設定建議。
 
 ## P1：Mock / Test stability
 
 - [x] Mock embedding 依 `EMBEDDING_DIM` 回傳向量（`LlmClient` 新增 `embedding_dim` 欄位）。
 - [x] 增加 test：`EMBEDDING_DIM=8` / 64 / 1536 時 mock 向量長度正確。
-- [ ] 增加 test：vector index dimension mismatch 回傳 actionable error。
-- [ ] 增加 test：`LLM_API_BASE=mock` + `LLM_API_KEY=local` 可通過。
-- [ ] 增加 test：extraction parse failed 不會中斷 session。
+- [x] 增加 test：vector index dimension mismatch 回傳 actionable error（`dimension_mismatch_returns_actionable_error`）。
+- [x] 增加 test：`LLM_API_BASE=mock` + `LLM_API_KEY=local` 可通過（`mock_mode_with_local_key_and_mock_base`）。
+- [x] 增加 test：extraction parse failed 不會中斷 session（`extraction_parse_failure_degrades_gracefully`）。
 
 ## P2：MCP schema 與輸出控制
 
-- [ ] `search_memories` 新增 `output_mode`。
-- [ ] `search_memories` 新增 `max_output_chars`。
+- [x] `search_memories` 新增 `output_mode`（brief：content+category+scores，省略 metadata）。
+- [x] `search_memories` 新增 `max_output_chars`（截斷總輸出字數）。
 - [ ] `get_memories` 新增 pagination / cursor。
-- [ ] MCP tool descriptions 標明何時使用。
-- [ ] 回傳結果加入 `score_breakdown`，但 brief 模式可省略 metadata。
+- [x] MCP tool descriptions 標明何時使用。
+- [x] 回傳結果加入 `score_breakdown`（score_final/score_semantic/score_bm25/score_temporal），brief 模式可省略 metadata。
 
 ## P2：資料一致性與修復
 
-- [ ] SQLite schema 新增 `status`。
-- [ ] SQLite schema 新增 `embedding_model`。
-- [ ] SQLite schema 新增 `embedding_dim`。
-- [ ] SQLite schema 新增 `content_hash`。
-- [ ] 新增 `index_repair_queue`。
-- [ ] Insert 流程標記 pending / active。
+- [x] 建立 migration `2_data_consistency.sql`（ALTER TABLE + index_repair_queue）。
+- [x] Memory struct 新增 `status`、`embedding_model`、`embedding_dim`、`content_hash`。
+- [x] Insert 流程寫入 status='active'、embedding_model、embedding_dim、SHA256 content_hash。
+- [x] 新增 `index_repair_queue` table + `enqueue_repair_issue` helper。
+- [x] 新增 `repair_indexes` MCP tool（支援 `dry_run`）。
+- [x] `repair_indexes` 含 entity reference cleanup、embedding metadata backfill、vector store consistency check。
+- [x] `repair_indexes` 自動記入 repair queue。
+- [x] `get_memory_stats` 回傳 active_memories、unresolved_repairs、vector_count。
+- [ ] 持久化 migration：依照 schema_version 2 執行 backfill（已有 `backfill_embedding_metadata` 方法）。
 - [ ] Delete 流程改為 tombstone + compaction，或保留 hard delete 但新增 archive。
-- [ ] 新增 `repair_indexes` command。
-- [ ] 新增 `repair_indexes` test。
-- [ ] `get_memory_stats` 回傳 index health。
 
 ## P2：OpenCode plugin
 
@@ -119,6 +120,22 @@
 - [x] 新增 `from_env` sanitization 測試（4 個新 unit tests）
 - [x] Mock embedding 維度固定 1536 bug — `LlmClient` 新增 `embedding_dim` 欄位
 - [x] 新增 `mock_embedding_respects_dimension` 測試（8/64/1536 dim）
+- [x] 新增 `mock_mode_with_local_key_and_mock_base` 測試
+- [x] 新增 `dimension_mismatch_returns_actionable_error` 測試
+- [x] 新增 `extraction_parse_failure_degrades_gracefully` 測試
+- [x] MCP server 重構：新增 `doctor` command（支援 `--json`）
+- [x] MCP server 新增 `install --json` 輸出 warnings / skipped / restart_required
+- [x] MCP server 新增 `install --client opencode|codex|claude|all`
+- [x] MCP server 新增 `install --dry-run` / `--print-config`
+- [x] 新增 Claude MCP config 安裝支援 (`update_claude_config`)
+- [x] commands.rs 模組化：install / doctor / config helpers 獨立模組
+- [x] `install.ps1` 新增 `-Client`, `-DryRun`, `-PrintConfig` 參數
+- [x] 建立 `install.sh`（Unix install script，支援 `--client`/`--dry-run`/`--print-config`/`--from-source`）
+- [x] P2 資料一致性 migration `2_data_consistency.sql`
+- [x] P2 Memory struct 新增 status/embedding_model/embedding_dim/content_hash
+- [x] P2 ConsolidationEngine 寫入 embedding metadata + content_hash
+- [x] P2 `repair_indexes` MCP tool（entity cleanup + metadata backfill + vector count check）
+- [x] P2 `get_memory_stats` 回傳 active_memories + unresolved_repairs
 
 ## Final gate
 
@@ -128,8 +145,8 @@
 - [x] `cargo build --release`
 - [x] `cd plugin && npm ci && npm test`
 - [x] MCP server `health` returns ok。
-- [ ] OpenCode config parse smoke test。
-- [ ] Codex config parse smoke test。
-- [ ] Claude `.mcp.json` parse smoke test。
-- [ ] `doctor --json` reports ok or actionable warning。
+- [x] OpenCode config parse smoke test（透過 `update_opencode_config` 兩項 unit tests 涵蓋）。
+- [x] Codex config parse smoke test（透過 `update_codex_config` coverage + doctor 檢查）。
+- [x] Claude `.mcp.json` parse smoke test（透過 `update_claude_config` 兩項 unit tests 涵蓋）。
+- [x] `doctor --json` reports ok or actionable warning（已驗證）。
 - [ ] `final.md` 更新實際完成項目。

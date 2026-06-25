@@ -47,7 +47,7 @@ pub struct Memory {
     pub retention_factor: f64,
 
     /// 提取到的命名實體 (JSON array of strings)
-    /// 範例: '["Rust", "tokio", "RTX 3070 Ti"]'
+    /// 範例: '["Rust", "tokio", "RTX 3070 TI"]'
     pub entities: String,
 
     /// 對應 USearch 向量索引的 ID
@@ -56,6 +56,27 @@ pub struct Memory {
     /// 額外元資料 (JSON object)
     /// 範例: '{"language": "rust", "framework": "tokio"}'
     pub metadata: String,
+
+    // ── 以下欄位由 2_data_consistency.sql migration 新增 ──
+    /// 記憶狀態: 'active' (正常) | 'archived' (已封存)
+    #[serde(default = "default_status")]
+    pub status: String,
+
+    /// 建立此記憶時使用的 embedding 模型名稱
+    /// 舊資料為 NULL，新版 insert 時會填入
+    pub embedding_model: Option<String>,
+
+    /// 建立此記憶時使用的 embedding 維度
+    /// 舊資料為 NULL，新版 insert 時會填入
+    pub embedding_dim: Option<i64>,
+
+    /// 內容的 SHA256 雜湊，用於快速重複檢查與完整性驗證
+    /// 舊資料為 NULL，新版 insert 時會填入
+    pub content_hash: Option<String>,
+}
+
+fn default_status() -> String {
+    "active".to_string()
 }
 
 /// 記憶類別

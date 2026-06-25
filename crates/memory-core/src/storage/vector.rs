@@ -102,6 +102,11 @@ impl VectorStore {
         self.index.size()
     }
 
+    /// Check whether a vector with the given ID exists in the index.
+    pub fn contains(&self, id: i64) -> bool {
+        self.index.contains(to_key(id).unwrap_or(u64::MAX))
+    }
+
     fn validate_vector(&self, vector: &[f32]) -> Result<()> {
         if vector.len() != self.dimensions {
             return Err(MemoryError::VectorIndex(format!(

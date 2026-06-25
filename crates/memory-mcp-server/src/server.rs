@@ -59,6 +59,14 @@ pub struct SearchMemoriesInput {
     pub min_importance: Option<f64>,
     #[schemars(description = "Weights for semantic, BM25, and temporal scores")]
     pub weights: Option<SearchWeightsInput>,
+    #[schemars(
+        description = "Output mode: 'brief' (content+category+scores) or 'full' (complete memory with all fields). Default: 'full'"
+    )]
+    pub output_mode: Option<String>,
+    #[schemars(
+        description = "Maximum total output characters. Longer output is truncated to fit within this limit"
+    )]
+    pub max_output_chars: Option<usize>,
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -91,6 +99,14 @@ pub struct ConsolidateMemoriesInput {
 #[derive(Deserialize, JsonSchema)]
 pub struct EmptyInput {}
 
+#[derive(Deserialize, JsonSchema)]
+pub struct RepairIndexesInput {
+    #[schemars(
+        description = "When true, only report issues without making changes. Default: false"
+    )]
+    pub dry_run: Option<bool>,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MemoryMcpServer Implementation
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,7 +126,7 @@ impl MemoryMcpServer {
 
     #[tool(
         name = "add_memory",
-        description = "Extract and store memories from conversation text using Single-Pass LLM extraction. Automatically deduplicates via ADD-only consolidation."
+        description = "Extract and store memories from conversation text using Single-Pass LLM extraction. Call this when the user shares personal info, preferences, project context, or any durable fact you want to recall later. Automatically deduplicates via ADD-only consolidation."
     )]
     async fn add_memory(
         &self,
@@ -166,7 +182,7 @@ impl MemoryMcpServer {
 
     #[tool(
         name = "search_memories",
-        description = "Hybrid semantic+BM25+temporal retrieval of relevant memories. Returns ranked results with score breakdown."
+        description = "Hybrid semantic+BM25+temporal retrieval of relevant memories. Call this at the start of every task to recall relevant past context. Supports output_mode 'brief' (compact) or 'full' (complete metadata). Returns ranked results with score breakdown."
     )]
     async fn search_memories(
         &self,
@@ -218,16 +234,55 @@ impl MemoryMcpServer {
             McpError::internal_error(format!("Failed to search memories: {}", e), None)
         })?;
 
-        let text = serde_json::to_string_pretty(&results).map_err(|e| {
+        // Apply output_mode
+        let output_is_brief = input
+            .output_mode
+            .as_deref()
+            .map(|m| m.eq_ignore_ascii_case("brief"))
+            .unwrap_or(false);
+
+        let json_value: serde_json::Value = if output_is_brief {
+            // Brief mode: only content, category, and scores
+            let brief: Vec<serde_json::Value> = results
+                .into_iter()
+                .map(|r| {
+                    serde_json::json!({
+                        "content": r.memory.content,
+                        "category": r.memory.category,
+                        "score_final": r.score_final,
+                        "score_semantic": r.score_semantic,
+                        "score_bm25": r.score_bm25,
+                        "score_temporal": r.score_temporal,
+                    })
+                })
+                .collect();
+            serde_json::Value::Array(brief)
+        } else {
+            // Full mode: complete SearchResult with Memory and score breakdown
+            serde_json::to_value(&results).map_err(|e| {
+                McpError::internal_error(format!("Failed to serialize result: {}", e), None)
+            })?
+        };
+
+        let mut text = serde_json::to_string_pretty(&json_value).map_err(|e| {
             McpError::internal_error(format!("Failed to serialize result: {}", e), None)
         })?;
+
+        // Apply max_output_chars limit
+        if let Some(max_chars) = input.max_output_chars {
+            if text.len() > max_chars {
+                text = text.chars().take(max_chars).collect();
+                // Ensure we close cleanly; append truncation indicator
+                text.push_str("\n...\n\"truncated\": true");
+            }
+        }
 
         Ok(CallToolResult::success(vec![Content::text(text)]))
     }
 
     #[tool(
         name = "get_memories",
-        description = "Retrieve memory records by IDs or list recent memories."
+        description = "Retrieve memory records by specific IDs or list recent memories by scope/project. Use this for direct lookup when you already have memory IDs, not for relevance search."
     )]
     async fn get_memories(
         &self,
@@ -261,7 +316,7 @@ impl MemoryMcpServer {
 
     #[tool(
         name = "delete_memory",
-        description = "Delete a memory by ID. Use with caution — prefer decay archival for most cases."
+        description = "Delete a memory by ID permanently. Only use when the user explicitly requests deletion of specific information. For routine cleanup, use consolidate_memories which respects decay thresholds."
     )]
     async fn delete_memory(
         &self,
@@ -280,7 +335,7 @@ impl MemoryMcpServer {
 
     #[tool(
         name = "consolidate_memories",
-        description = "Trigger batch consolidation: deduplication, decay update, and index compaction."
+        description = "Trigger batch maintenance: deduplication, decay calculation, and index compaction. Call periodically (e.g., every 10-20 add_memory calls) to keep storage efficient and remove low-importance memories that have fallen below decay threshold."
     )]
     async fn consolidate_memories(
         &self,
@@ -312,7 +367,7 @@ impl MemoryMcpServer {
 
     #[tool(
         name = "get_memory_stats",
-        description = "Return memory system statistics: total count, category breakdown, index health."
+        description = "Return memory system statistics: total count, category breakdown, and index health. Use this for monitoring and debugging — call it to check whether consolidate_memories is needed or to verify the system is functioning."
     )]
     async fn get_memory_stats(
         &self,
@@ -324,6 +379,41 @@ impl MemoryMcpServer {
             })?;
 
         let text = serde_json::to_string_pretty(&stats).map_err(|e| {
+            McpError::internal_error(format!("Failed to serialize result: {}", e), None)
+        })?;
+
+        Ok(CallToolResult::success(vec![Content::text(text)]))
+    }
+
+    #[tool(
+        name = "repair_indexes",
+        description = "Diagnose and repair index inconsistencies: orphaned entity references, missing embedding metadata, and vector store vs SQLite count mismatches. Run this periodically or when get_memory_stats shows discrepancies."
+    )]
+    async fn repair_indexes(
+        &self,
+        #[tool(aggr)] input: RepairIndexesInput,
+    ) -> Result<CallToolResult, McpError> {
+        let dry_run = input.dry_run.unwrap_or(false);
+
+        if dry_run {
+            // In dry-run mode, run diagnostics without fixing
+            let stats = self.service.get_stats().await.map_err(|e| {
+                McpError::internal_error(format!("Failed to get stats: {}", e), None)
+            })?;
+            let text = serde_json::to_string_pretty(&serde_json::json!({
+                "dry_run": true,
+                "message": "Dry-run mode: no changes made. Run without dry_run to apply repairs.",
+                "stats": stats,
+            }))
+            .map_err(|e| McpError::internal_error(format!("Failed to serialize: {}", e), None))?;
+            return Ok(CallToolResult::success(vec![Content::text(text)]));
+        }
+
+        let result = self.service.repair_indexes().await.map_err(|e| {
+            McpError::internal_error(format!("Failed to repair indexes: {}", e), None)
+        })?;
+
+        let text = serde_json::to_string_pretty(&result).map_err(|e| {
             McpError::internal_error(format!("Failed to serialize result: {}", e), None)
         })?;
 

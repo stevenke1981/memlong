@@ -24,6 +24,10 @@ fn memory(id: &str, vector_id: i64, project_id: &str, updated_at: i64) -> Memory
         entities: "[]".to_string(),
         vector_id,
         metadata: r#"{"llm_importance":3,"archived":false}"#.to_string(),
+        status: "active".to_string(),
+        embedding_model: None,
+        embedding_dim: None,
+        content_hash: None,
     }
 }
 
@@ -51,7 +55,7 @@ async fn batch_consolidation_only_updates_requested_project() {
         .unwrap();
 
     let engine =
-        ConsolidationEngine::new(sqlite.clone(), vector_store, text_index, 0.92, 0.75, 0.001);
+        ConsolidationEngine::new(sqlite.clone(), vector_store, text_index, 0.92, 0.75, 0.001, "test-embedding".to_string(), 1536);
     engine
         .batch_consolidate(Some(MemoryScope::Project), Some("project-a"))
         .await
@@ -77,7 +81,7 @@ async fn failed_vector_insert_does_not_leave_a_sqlite_orphan() {
     let text_index =
         Arc::new(TextIndex::new(&tmp.path().join("tantivy").to_string_lossy()).unwrap());
     let engine =
-        ConsolidationEngine::new(sqlite.clone(), vector_store, text_index, 0.92, 0.75, 0.001);
+        ConsolidationEngine::new(sqlite.clone(), vector_store, text_index, 0.92, 0.75, 0.001, "test-embedding".to_string(), 3);
 
     let result = engine
         .consolidate_single(
