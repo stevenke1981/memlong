@@ -366,7 +366,7 @@ impl ServerHandler for MemoryMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             server_info: rmcp::model::Implementation {
-                name: "opencode-memory".into(),
+                name: "ams".into(),
                 version: "0.1.0".into(),
             },
             ..Default::default()

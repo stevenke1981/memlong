@@ -1,5 +1,6 @@
 # Rust build artifacts
 target/
+bin/
 
 # Node/TypeScript build artifacts
 node_modules/

@@ -7,8 +7,8 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 mod server;
 
-const SERVER_NAME: &str = "opencode-memory";
-const LEGACY_SERVER_NAMES: &[&str] = &["memory-mcp-server", "memory-mcp", "memlong-memory"];
+const SERVER_NAME: &str = "ams";
+const LEGACY_SERVER_NAMES: &[&str] = &["opencode-memory", "memory-mcp-server", "memory-mcp", "memlong-memory"];
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -17,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
         let cmd = args[0].as_str();
         match cmd {
             "--version" | "-V" | "version" => {
-                println!("opencode-memory v0.1.0");
+                println!("ams v0.1.0");
                 return Ok(());
             }
             "health" => {
@@ -442,7 +442,7 @@ mod tests {
     #[test]
     fn opencode_config_paths_use_existing_files_or_create_json() {
         let temp_dir =
-            std::env::temp_dir().join(format!("opencode-memory-path-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("ams-path-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp_dir);
         let user_profile = temp_dir.join("user");
         let config_dir = user_profile.join(".config").join("opencode");
@@ -468,7 +468,7 @@ mod tests {
     #[test]
     fn update_opencode_config_preserves_existing_mcp_entries_and_removes_legacy_names() {
         let temp_dir =
-            std::env::temp_dir().join(format!("opencode-memory-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("ams-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
         let config_path = temp_dir.join("opencode.jsonc");
@@ -501,7 +501,7 @@ mod tests {
             serde_json::json!("existing.exe")
         );
         assert_eq!(
-            updated["mcp"]["opencode-memory"]["command"][0],
+            updated["mcp"]["ams"]["command"][0],
             serde_json::json!("C:\\tools\\memory.exe")
         );
         assert!(updated["mcp"].get("memory-mcp-server").is_none());
@@ -512,7 +512,7 @@ mod tests {
     #[test]
     fn update_opencode_config_accepts_jsonc_comments() {
         let temp_dir =
-            std::env::temp_dir().join(format!("opencode-memory-jsonc-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("ams-jsonc-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
         let config_path = temp_dir.join("opencode.jsonc");
@@ -537,7 +537,7 @@ mod tests {
             serde_json::json!("~/.config/opencode/plugins/example.ts")
         );
         assert_eq!(
-            updated["mcp"]["opencode-memory"]["command"][0],
+            updated["mcp"]["ams"]["command"][0],
             serde_json::json!("memory.exe")
         );
 
@@ -547,7 +547,7 @@ mod tests {
     #[test]
     fn update_codex_config_replaces_current_and_legacy_blocks() {
         let temp_dir =
-            std::env::temp_dir().join(format!("opencode-memory-codex-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("ams-codex-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&temp_dir);
         std::fs::create_dir_all(&temp_dir).unwrap();
         let config_path = temp_dir.join("config.toml");
@@ -586,7 +586,7 @@ approval_policy = "never"
         assert!(!updated.contains("[mcp_servers.opencode-memory.env]"));
         assert!(!updated.contains("old.db"));
         assert!(!updated.contains("[mcp_servers.memory-mcp-server]"));
-        assert!(updated.contains("[mcp_servers.opencode-memory]"));
+        assert!(updated.contains("[mcp_servers.ams]"));
         assert!(updated.contains(r#"command = "C:/tools/opencode-memory.exe""#));
         assert!(updated.contains("args = []"));
 
@@ -596,7 +596,7 @@ approval_policy = "never"
     #[test]
     fn update_codex_config_creates_parent_directory() {
         let temp_dir = std::env::temp_dir().join(format!(
-            "opencode-memory-codex-create-test-{}",
+            "ams-codex-create-test-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&temp_dir);
@@ -605,7 +605,7 @@ approval_policy = "never"
         update_codex_config(&config_path, "memory.exe").unwrap();
         let updated = std::fs::read_to_string(&config_path).unwrap();
 
-        assert!(updated.contains("[mcp_servers.opencode-memory]"));
+        assert!(updated.contains("[mcp_servers.ams]"));
         assert!(updated.contains(r#"command = "memory.exe""#));
 
         let _ = std::fs::remove_dir_all(&temp_dir);
