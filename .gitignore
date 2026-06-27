@@ -4,7 +4,6 @@ bin/
 
 # Node/TypeScript build artifacts
 node_modules/
-plugin/dist/
 
 # SQLite & local database directories
 .opencode/

@@ -41,7 +41,7 @@ interface McpClient {
 // OpenCode Plugin Core
 // ─────────────────────────────────────────────────────────────
 export default {
-  name: "opencode-memory",
+  name: "ams",
   version: "1.0.0",
 
   hooks: {
@@ -66,7 +66,7 @@ export default {
 
         ctx.injectSystemPrompt(formatMemoriesForInjection(memories));
       } catch (err) {
-        console.error("[opencode-memory] onChatStart error:", err);
+        console.error("[ams] onChatStart error:", err);
       }
     },
 
@@ -88,7 +88,7 @@ export default {
             session_id: ctx.sessionId,
           });
         } catch (err) {
-          console.error("[opencode-memory] onMessageComplete error:", err);
+          console.error("[ams] onMessageComplete error:", err);
         }
       });
     },
@@ -103,7 +103,7 @@ export default {
           project_id: ctx.projectId,
         });
       } catch (err) {
-        console.error("[opencode-memory] onSessionEnd error:", err);
+        console.error("[ams] onSessionEnd error:", err);
       }
     },
   },

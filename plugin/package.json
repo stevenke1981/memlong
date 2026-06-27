@@ -1,5 +1,5 @@
 {
-  "name": "opencode-memory",
+  "name": "ams-plugin",
   "version": "1.0.0",
   "description": "TypeScript shim for the OpenCode Agent Long-Term Memory System",
   "main": "dist/index.js",
